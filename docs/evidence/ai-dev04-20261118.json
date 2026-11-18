@@ -1,0 +1,573 @@
+{
+  "scope": "Automated workflow on ai-dev04 only; human answer relevance review pending.",
+  "verification": {
+    "schema_version": 1,
+    "started_utc": "2026-11-18T13:55:23.947866+00:00",
+    "namespace": "tgolan-mistral-validation",
+    "requested_configuration": {
+      "namespace": "tgolan-mistral-validation",
+      "pull_secret": "ibm-entitlement",
+      "pvc": {
+        "name": "mistral-weights",
+        "size": "140Gi",
+        "storage_class": null
+      },
+      "gpu_count": 8,
+      "serving_timeout_seconds": 3600,
+      "serving": {
+        "gpu_resources": {
+          "requests": {
+            "nvidia.com/gpu": 8
+          },
+          "limits": {
+            "nvidia.com/gpu": 8
+          }
+        },
+        "tensor_parallel_size": 8,
+        "tolerations": [
+          {
+            "key": "p4-gpu",
+            "operator": "Exists",
+            "effect": "NoSchedule"
+          }
+        ]
+      },
+      "images": {
+        "weights": [
+          "cp.icr.io/cp/cpd/mistral-large-instruct-2411-part1@sha256:cf6e5d18c42a9bb54784b74829ca04bd3b7c9f6db262b7b70c2fad6fa260cdbb",
+          "cp.icr.io/cp/cpd/mistral-large-instruct-2411-part2@sha256:1fc2d41306d18ff2111d6d07805c06b170a2827ccd10ee5e6e10dad6a757a483",
+          "cp.icr.io/cp/cpd/mistral-large-instruct-2411-part3@sha256:188ffd7990437409be9f66cf35e84ac34b87115a8edf553dca629339db15be51",
+          "cp.icr.io/cp/cpd/mistral-large-instruct-2411-part4@sha256:b1465deaeb1f8beb13fa71299ab6b5751678dfcdbae64ec989a779d9052ae3ce"
+        ],
+        "runtime": "cp.icr.io/cp/cpd/mistral-inference-server@sha256:03512d44a97adb6aff115e025df819ec05b249728471effe6a5615880af593a9"
+      }
+    },
+    "checks": {
+      "preflight": {
+        "started_utc": "2026-11-18T13:55:25.445402+00:00",
+        "result": "passed",
+        "finished_utc": "2026-11-18T13:55:46.337311+00:00",
+        "elapsed_seconds": 20.892
+      },
+      "inventory": {
+        "started_utc": "2026-11-18T13:55:46.338579+00:00",
+        "result": "passed",
+        "finished_utc": "2026-11-18T14:04:20.682005+00:00",
+        "elapsed_seconds": 514.332
+      },
+      "preparation_interruption": {
+        "started_utc": "2026-11-18T14:04:20.682918+00:00",
+        "result": "passed",
+        "finished_utc": "2026-11-18T14:04:49.832449+00:00",
+        "elapsed_seconds": 29.15
+      },
+      "prepare": {
+        "started_utc": "2026-11-18T14:04:49.833645+00:00",
+        "result": "passed",
+        "finished_utc": "2026-11-18T14:37:29.370422+00:00",
+        "elapsed_seconds": 1959.569
+      },
+      "install": {
+        "started_utc": "2026-11-18T14:37:29.371613+00:00",
+        "result": "passed",
+        "finished_utc": "2026-11-18T14:55:40.224620+00:00",
+        "elapsed_seconds": 1090.865
+      },
+      "status": {
+        "started_utc": "2026-11-18T14:55:40.226075+00:00",
+        "result": "passed",
+        "finished_utc": "2026-11-18T14:55:41.706143+00:00",
+        "elapsed_seconds": 1.48
+      },
+      "validate": {
+        "started_utc": "2026-11-18T14:55:47.281865+00:00",
+        "result": "passed",
+        "finished_utc": "2026-11-18T14:55:49.407254+00:00",
+        "elapsed_seconds": 2.125
+      },
+      "restart-verify": {
+        "started_utc": "2026-11-18T14:55:49.408079+00:00",
+        "result": "passed",
+        "finished_utc": "2026-11-18T14:58:25.857645+00:00",
+        "elapsed_seconds": 156.451
+      },
+      "concurrency-check": {
+        "started_utc": "2026-11-18T14:58:25.858633+00:00",
+        "result": "passed",
+        "finished_utc": "2026-11-18T14:58:29.710535+00:00",
+        "elapsed_seconds": 3.852
+      },
+      "context-check": {
+        "started_utc": "2026-11-18T14:58:29.711589+00:00",
+        "result": "passed",
+        "finished_utc": "2026-11-18T14:58:57.976984+00:00",
+        "elapsed_seconds": 28.266
+      },
+      "human_review": {
+        "result": "pending"
+      },
+      "uninstall": {
+        "started_utc": "2026-11-18T14:59:25.435831+00:00",
+        "result": "passed",
+        "finished_utc": "2026-11-18T14:59:43.678601+00:00",
+        "elapsed_seconds": 18.243
+      },
+      "uninstall_repeat": {
+        "started_utc": "2026-11-18T14:59:43.680049+00:00",
+        "result": "passed",
+        "finished_utc": "2026-11-18T14:59:54.463264+00:00",
+        "elapsed_seconds": 10.783
+      },
+      "purge": {
+        "started_utc": "2026-11-18T14:59:55.044858+00:00",
+        "result": "passed",
+        "finished_utc": "2026-11-18T15:00:02.722395+00:00",
+        "elapsed_seconds": 7.678
+      },
+      "purge_repeat": {
+        "started_utc": "2026-11-18T15:00:02.723864+00:00",
+        "result": "passed",
+        "finished_utc": "2026-11-18T15:00:03.476747+00:00",
+        "elapsed_seconds": 0.753
+      }
+    },
+    "human_review": {
+      "result": "pending",
+      "sample_count": 0,
+      "conclusion": "pending"
+    },
+    "result": "incomplete_human_review_pending",
+    "updated_utc": "2026-11-18T15:00:04.067933+00:00",
+    "preparation": {
+      "timestamp_utc": "2026-11-18T14:37:29.347215+00:00",
+      "verified_files": 36,
+      "peak_pvc_used_kib": 120546356,
+      "source_images": [
+        {
+          "reference": "cp.icr.io/cp/cpd/mistral-large-instruct-2411-part1@sha256:cf6e5d18c42a9bb54784b74829ca04bd3b7c9f6db262b7b70c2fad6fa260cdbb",
+          "observed_image_id": "cp.icr.io/cp/cpd/mistral-large-instruct-2411-part1@sha256:cf6e5d18c42a9bb54784b74829ca04bd3b7c9f6db262b7b70c2fad6fa260cdbb"
+        },
+        {
+          "reference": "cp.icr.io/cp/cpd/mistral-large-instruct-2411-part2@sha256:1fc2d41306d18ff2111d6d07805c06b170a2827ccd10ee5e6e10dad6a757a483",
+          "observed_image_id": "cp.icr.io/cp/cpd/mistral-large-instruct-2411-part2@sha256:1fc2d41306d18ff2111d6d07805c06b170a2827ccd10ee5e6e10dad6a757a483"
+        },
+        {
+          "reference": "cp.icr.io/cp/cpd/mistral-large-instruct-2411-part3@sha256:188ffd7990437409be9f66cf35e84ac34b87115a8edf553dca629339db15be51",
+          "observed_image_id": "cp.icr.io/cp/cpd/mistral-large-instruct-2411-part3@sha256:188ffd7990437409be9f66cf35e84ac34b87115a8edf553dca629339db15be51"
+        },
+        {
+          "reference": "cp.icr.io/cp/cpd/mistral-large-instruct-2411-part4@sha256:b1465deaeb1f8beb13fa71299ab6b5751678dfcdbae64ec989a779d9052ae3ce",
+          "observed_image_id": "cp.icr.io/cp/cpd/mistral-large-instruct-2411-part4@sha256:b1465deaeb1f8beb13fa71299ab6b5751678dfcdbae64ec989a779d9052ae3ce"
+        }
+      ]
+    },
+    "tested_configuration": {
+      "timestamp_utc": "2026-11-18T14:55:47.280225+00:00",
+      "cluster_id": "ea506933-1745-4f08-a620-0d227a7043e3",
+      "ocp_version": "4.22.20",
+      "rhoai_version": "3.5.2",
+      "inferenceservice_uid": "c60fc971-a08d-42d6-8b12-e1a1593bf0a0",
+      "configuration_sha256": "2f9f2808b7b63aaaa24240d0f71897974b7b4fd823d2da9a11a17dfce10c2aad",
+      "pvc_uid": "3a3a7e10-2c49-4c27-93c4-32c2bed1d27c",
+      "pvc_capacity": {
+        "storage": "140Gi"
+      },
+      "gpu_devices": [
+        {
+          "type": "NVIDIA A100-SXM4-40GB",
+          "memory_mib": 40960
+        },
+        {
+          "type": "NVIDIA A100-SXM4-40GB",
+          "memory_mib": 40960
+        },
+        {
+          "type": "NVIDIA A100-SXM4-40GB",
+          "memory_mib": 40960
+        },
+        {
+          "type": "NVIDIA A100-SXM4-40GB",
+          "memory_mib": 40960
+        },
+        {
+          "type": "NVIDIA A100-SXM4-40GB",
+          "memory_mib": 40960
+        },
+        {
+          "type": "NVIDIA A100-SXM4-40GB",
+          "memory_mib": 40960
+        },
+        {
+          "type": "NVIDIA A100-SXM4-40GB",
+          "memory_mib": 40960
+        },
+        {
+          "type": "NVIDIA A100-SXM4-40GB",
+          "memory_mib": 40960
+        }
+      ],
+      "actual_gpu_count": 8,
+      "gpu_resources": {
+        "limits": {
+          "nvidia.com/gpu": "8"
+        },
+        "requests": {
+          "nvidia.com/gpu": "8"
+        }
+      },
+      "capacity_arguments": [
+        "--max-model-len=32768",
+        "--max-num-seqs=20",
+        "--tensor-parallel-size=8"
+      ],
+      "runtime_image": "cp.icr.io/cp/cpd/mistral-inference-server@sha256:03512d44a97adb6aff115e025df819ec05b249728471effe6a5615880af593a9",
+      "runtime_image_id": "cp.icr.io/cp/cpd/mistral-inference-server@sha256:03512d44a97adb6aff115e025df819ec05b249728471effe6a5615880af593a9"
+    },
+    "final_configuration": {
+      "timestamp_utc": "2026-11-18T14:59:03.620773+00:00",
+      "cluster_id": "ea506933-1745-4f08-a620-0d227a7043e3",
+      "ocp_version": "4.22.20",
+      "rhoai_version": "3.5.2",
+      "inferenceservice_uid": "c60fc971-a08d-42d6-8b12-e1a1593bf0a0",
+      "configuration_sha256": "2f9f2808b7b63aaaa24240d0f71897974b7b4fd823d2da9a11a17dfce10c2aad",
+      "pvc_uid": "3a3a7e10-2c49-4c27-93c4-32c2bed1d27c",
+      "pvc_capacity": {
+        "storage": "140Gi"
+      },
+      "gpu_devices": [
+        {
+          "type": "NVIDIA A100-SXM4-40GB",
+          "memory_mib": 40960
+        },
+        {
+          "type": "NVIDIA A100-SXM4-40GB",
+          "memory_mib": 40960
+        },
+        {
+          "type": "NVIDIA A100-SXM4-40GB",
+          "memory_mib": 40960
+        },
+        {
+          "type": "NVIDIA A100-SXM4-40GB",
+          "memory_mib": 40960
+        },
+        {
+          "type": "NVIDIA A100-SXM4-40GB",
+          "memory_mib": 40960
+        },
+        {
+          "type": "NVIDIA A100-SXM4-40GB",
+          "memory_mib": 40960
+        },
+        {
+          "type": "NVIDIA A100-SXM4-40GB",
+          "memory_mib": 40960
+        },
+        {
+          "type": "NVIDIA A100-SXM4-40GB",
+          "memory_mib": 40960
+        }
+      ],
+      "actual_gpu_count": 8,
+      "gpu_resources": {
+        "limits": {
+          "nvidia.com/gpu": "8"
+        },
+        "requests": {
+          "nvidia.com/gpu": "8"
+        }
+      },
+      "capacity_arguments": [
+        "--max-model-len=32768",
+        "--max-num-seqs=20",
+        "--tensor-parallel-size=8"
+      ],
+      "runtime_image": "cp.icr.io/cp/cpd/mistral-inference-server@sha256:03512d44a97adb6aff115e025df819ec05b249728471effe6a5615880af593a9",
+      "runtime_image_id": "cp.icr.io/cp/cpd/mistral-inference-server@sha256:03512d44a97adb6aff115e025df819ec05b249728471effe6a5615880af593a9"
+    },
+    "finished_utc": "2026-11-18T14:59:03.621525+00:00",
+    "storage_reclaim_policy": "Delete",
+    "backing_volume": {
+      "name": "pvc-3a3a7e10-2c49-4c27-93c4-32c2bed1d27c",
+      "uid": "866acb45-c811-4353-bd7b-1af9e0e5a9da"
+    },
+    "cleanup_claim_preserved": true,
+    "backing_volume_removed": true
+  },
+  "component_reports": [
+    {
+      "report": "concurrency-tgolan-mistral-validation-20261118T145829692661Z.json",
+      "sha256": "f2d152d03512e1d66adea5a554c946c77b64b67b11782108a22c74f24f47d705",
+      "evidence": {
+        "timestamp_utc": "2026-11-18T14:58:29.692661+00:00",
+        "namespace": "tgolan-mistral-validation",
+        "model": "mistralai/mistral-large-instruct-2411",
+        "effective_gpu_count": 8,
+        "request_count": 20,
+        "timeout_seconds": 120,
+        "elapsed_seconds": 1.191,
+        "requests": [
+          {
+            "request_id": 1,
+            "http_status": 200,
+            "result": "passed",
+            "elapsed_seconds": 1.027
+          },
+          {
+            "request_id": 2,
+            "http_status": 200,
+            "result": "passed",
+            "elapsed_seconds": 1.055
+          },
+          {
+            "request_id": 3,
+            "http_status": 200,
+            "result": "passed",
+            "elapsed_seconds": 1.154
+          },
+          {
+            "request_id": 4,
+            "http_status": 200,
+            "result": "passed",
+            "elapsed_seconds": 1.148
+          },
+          {
+            "request_id": 5,
+            "http_status": 200,
+            "result": "passed",
+            "elapsed_seconds": 1.007
+          },
+          {
+            "request_id": 6,
+            "http_status": 200,
+            "result": "passed",
+            "elapsed_seconds": 1.08
+          },
+          {
+            "request_id": 7,
+            "http_status": 200,
+            "result": "passed",
+            "elapsed_seconds": 1.077
+          },
+          {
+            "request_id": 8,
+            "http_status": 200,
+            "result": "passed",
+            "elapsed_seconds": 1.1
+          },
+          {
+            "request_id": 9,
+            "http_status": 200,
+            "result": "passed",
+            "elapsed_seconds": 1.123
+          },
+          {
+            "request_id": 10,
+            "http_status": 200,
+            "result": "passed",
+            "elapsed_seconds": 1.126
+          },
+          {
+            "request_id": 11,
+            "http_status": 200,
+            "result": "passed",
+            "elapsed_seconds": 1.032
+          },
+          {
+            "request_id": 12,
+            "http_status": 200,
+            "result": "passed",
+            "elapsed_seconds": 1.102
+          },
+          {
+            "request_id": 13,
+            "http_status": 200,
+            "result": "passed",
+            "elapsed_seconds": 1.074
+          },
+          {
+            "request_id": 14,
+            "http_status": 200,
+            "result": "passed",
+            "elapsed_seconds": 0.942
+          },
+          {
+            "request_id": 15,
+            "http_status": 200,
+            "result": "passed",
+            "elapsed_seconds": 1.05
+          },
+          {
+            "request_id": 16,
+            "http_status": 200,
+            "result": "passed",
+            "elapsed_seconds": 0.971
+          },
+          {
+            "request_id": 17,
+            "http_status": 200,
+            "result": "passed",
+            "elapsed_seconds": 1.129
+          },
+          {
+            "request_id": 18,
+            "http_status": 200,
+            "result": "passed",
+            "elapsed_seconds": 1.155
+          },
+          {
+            "request_id": 19,
+            "http_status": 200,
+            "result": "passed",
+            "elapsed_seconds": 1.029
+          },
+          {
+            "request_id": 20,
+            "http_status": 200,
+            "result": "passed",
+            "elapsed_seconds": 1.003
+          }
+        ],
+        "result": "passed",
+        "failure_detail": "20/20 valid responses"
+      }
+    },
+    {
+      "report": "context-tgolan-mistral-validation-20261118T145857951962Z.json",
+      "sha256": "84b1d44a3a29807d9c55ac59df4584b0978b95d482d0908692b2c7ed6afa32a3",
+      "evidence": {
+        "timestamp_utc": "2026-11-18T14:58:57.951962+00:00",
+        "namespace": "tgolan-mistral-validation",
+        "model": "mistralai/mistral-large-instruct-2411",
+        "effective_gpu_count": 8,
+        "configured_model_length": 32768,
+        "observed_model_length": 32768,
+        "measurement_method": "vLLM POST /tokenize with chat template and generation prompt",
+        "reserved_output_tokens": 16,
+        "max_headroom_tokens": 128,
+        "input_tokens": 32654,
+        "input_plus_reserved_tokens": 32670,
+        "prompt_tokens": 32654,
+        "completion_tokens": 16,
+        "total_tokens": 32670,
+        "http_status": 200,
+        "tokenize_http_status": 200,
+        "elapsed_seconds": 12.067,
+        "timeout_seconds": 120,
+        "result": "passed",
+        "failure_detail": "valid near-limit response"
+      }
+    },
+    {
+      "report": "preparation-tgolan-mistral-validation-20261118T143729Z.json",
+      "sha256": "57a13feb07547b099fe2ca9edc2fefe11c2bf0dc19033163d376a29c2ca9c06c",
+      "evidence": {
+        "timestamp_utc": "2026-11-18T14:37:29.347215+00:00",
+        "namespace": "tgolan-mistral-validation",
+        "pvc": {
+          "name": "mistral-weights",
+          "size": "140Gi",
+          "storage_class": null
+        },
+        "job": "mistral-2411-prepare",
+        "model": "mistral-large-instruct-2411",
+        "verified_files": 36,
+        "peak_pvc_used_kib": 120546356,
+        "source_images": [
+          {
+            "reference": "cp.icr.io/cp/cpd/mistral-large-instruct-2411-part1@sha256:cf6e5d18c42a9bb54784b74829ca04bd3b7c9f6db262b7b70c2fad6fa260cdbb",
+            "observed_image_id": "cp.icr.io/cp/cpd/mistral-large-instruct-2411-part1@sha256:cf6e5d18c42a9bb54784b74829ca04bd3b7c9f6db262b7b70c2fad6fa260cdbb"
+          },
+          {
+            "reference": "cp.icr.io/cp/cpd/mistral-large-instruct-2411-part2@sha256:1fc2d41306d18ff2111d6d07805c06b170a2827ccd10ee5e6e10dad6a757a483",
+            "observed_image_id": "cp.icr.io/cp/cpd/mistral-large-instruct-2411-part2@sha256:1fc2d41306d18ff2111d6d07805c06b170a2827ccd10ee5e6e10dad6a757a483"
+          },
+          {
+            "reference": "cp.icr.io/cp/cpd/mistral-large-instruct-2411-part3@sha256:188ffd7990437409be9f66cf35e84ac34b87115a8edf553dca629339db15be51",
+            "observed_image_id": "cp.icr.io/cp/cpd/mistral-large-instruct-2411-part3@sha256:188ffd7990437409be9f66cf35e84ac34b87115a8edf553dca629339db15be51"
+          },
+          {
+            "reference": "cp.icr.io/cp/cpd/mistral-large-instruct-2411-part4@sha256:b1465deaeb1f8beb13fa71299ab6b5751678dfcdbae64ec989a779d9052ae3ce",
+            "observed_image_id": "cp.icr.io/cp/cpd/mistral-large-instruct-2411-part4@sha256:b1465deaeb1f8beb13fa71299ab6b5751678dfcdbae64ec989a779d9052ae3ce"
+          }
+        ]
+      }
+    },
+    {
+      "report": "restart-tgolan-mistral-validation-20261118T145825841106Z.json",
+      "sha256": "c7403d2d025ea65639bf96304c839077839f7eafbb6471dc1d4163d2b9cb3d43",
+      "evidence": {
+        "timestamp_utc": "2026-11-18T14:58:25.841106+00:00",
+        "namespace": "tgolan-mistral-validation",
+        "model": "mistral-large-instruct-2411",
+        "pvc": "mistral-weights",
+        "timeout_seconds": 3600,
+        "replacement_seen_seconds": 2.166,
+        "restart_to_ready_seconds": 151.193,
+        "observed_replacement_unready": true,
+        "elapsed_seconds": 154.942,
+        "inference_valid": true,
+        "result": "passed",
+        "failure_detail": null
+      }
+    },
+    {
+      "report": "serving-tgolan-mistral-validation-20261118T145540193935Z.json",
+      "sha256": "dc2e7235a6d5dc3face8f546e36dffc3f1ad06fe9d129d50ca5d472b7d53e952",
+      "evidence": {
+        "timestamp_utc": "2026-11-18T14:55:40.193935+00:00",
+        "namespace": "tgolan-mistral-validation",
+        "model": "mistral-large-instruct-2411",
+        "served_model": "mistralai/mistral-large-instruct-2411",
+        "runtime_image": "cp.icr.io/cp/cpd/mistral-inference-server@sha256:03512d44a97adb6aff115e025df819ec05b249728471effe6a5615880af593a9",
+        "gpu_count": 8,
+        "pvc": "mistral-weights",
+        "observed_scc": "restricted-v2",
+        "observed_unready": true,
+        "observed_health_unready": true,
+        "health_unready_source": "kubelet_probe_event",
+        "health_ready": true,
+        "inference_valid": true,
+        "install_to_ready_seconds": 1081.982,
+        "model_load_seconds": 1074.455,
+        "result": "passed"
+      }
+    },
+    {
+      "report": "validation-tgolan-mistral-validation-20261118T145549392584Z.json",
+      "sha256": "913dc524f8c7a76161750e4ad18d60b3fd360df143206e499d3203dc78349394",
+      "evidence": {
+        "timestamp_utc": "2026-11-18T14:55:49.392584+00:00",
+        "namespace": "tgolan-mistral-validation",
+        "unauthenticated_status": 401,
+        "authenticated_status": 200,
+        "authenticated_chat_valid": true,
+        "result": "passed"
+      }
+    },
+    {
+      "report": "validation-tgolan-mistral-validation-20261118T145827916011Z.json",
+      "sha256": "d685c68cca7454e64a5047f1a49c1d81be140c63c68896189835e49c45121663",
+      "evidence": {
+        "timestamp_utc": "2026-11-18T14:58:27.916011+00:00",
+        "namespace": "tgolan-mistral-validation",
+        "unauthenticated_status": 401,
+        "authenticated_status": 200,
+        "authenticated_chat_valid": true,
+        "result": "passed"
+      }
+    },
+    {
+      "report": "validation-tgolan-mistral-validation-20261118T145831774679Z.json",
+      "sha256": "a38ff09962213624795f1984f0275a589082f32047642547827227e4a7f6da9d",
+      "evidence": {
+        "timestamp_utc": "2026-11-18T14:58:31.774679+00:00",
+        "namespace": "tgolan-mistral-validation",
+        "unauthenticated_status": 401,
+        "authenticated_status": 200,
+        "authenticated_chat_valid": true,
+        "result": "passed"
+      }
+    }
+  ]
+}
