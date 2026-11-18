@@ -13,7 +13,7 @@ import sys
 import tempfile
 import time
 
-from preparation import JOB_NAME, read_layout, render as render_preparation, render_discovery
+from preparation import JOB_NAME, PVC_UID_ANNOTATION, read_layout, render as render_preparation, render_discovery
 from inventory import collect as collect_inventory
 from serving import observe as observe_serving
 from serving import verify_restart
@@ -524,6 +524,16 @@ def prepare(oc, cfg, resources, timeout, layout, report_dir):
             if not error.not_found:
                 raise
             oc.apply(resources["items"][0])
+        try:
+            identity = claim_identity(oc, cfg)
+        except OcError:
+            print(f"FAIL preparation: PVC {cfg['pvc']['name']}'s name and UID are unavailable; "
+                  "check PVC access and provisioning, then rerun make prepare with the same PVC_NAME")
+            return 1
+        # The Job's immutable pod template binds verification to this claim
+        # before any preparation container starts; the claim name is in volumes.
+        resources["items"][2]["spec"]["template"]["metadata"] = {
+            "annotations": {PVC_UID_ANNOTATION: identity["uid"]}}
         oc.apply(resources["items"][1])
         oc.apply(resources["items"][2])
         deadline = time.monotonic() + int(timeout[:-1])
@@ -564,10 +574,19 @@ def prepare(oc, cfg, resources, timeout, layout, report_dir):
         print("FAIL preparation: cannot verify the four pinned source images from the completed Job pod")
         return 1
     try:
+        if claim_identity(oc, cfg) != identity or not preparation_claim_matches(job, pod, identity):
+            raise OcError()
+    except OcError:
+        print(f"FAIL preparation: PVC {cfg['pvc']['name']}'s name or UID changed or identity evidence is unavailable; "
+              "check PVC access, stop serving, and rerun make prepare with the intended PVC_NAME; "
+              "inspect any completed directory before replacing it")
+        return 1
+    try:
         log = oc.run("logs", f"job/{JOB_NAME}", "-n", namespace, "-c", "verify")
     except OcError:
-        print("PASS preparation: Job completed; inspect .complete.json on the PVC for verified inventory and peak usage")
-        return 0
+        print("FAIL preparation: verification logs are unavailable; restore Job log access and rerun make install, "
+              "or stop serving and rerun make prepare after inspecting any completed directory")
+        return 1
     match = re.search(r"PREPARATION_COMPLETE verified_files=([0-9]+) peak_pvc_used_kib=([0-9]+)", log)
     if not match:
         print("FAIL preparation: Job completed without a verified completion report; inspect the Job")
@@ -575,7 +594,7 @@ def prepare(oc, cfg, resources, timeout, layout, report_dir):
     timestamp = datetime.now(timezone.utc)
     report_path = report_root / f"preparation-{namespace}-{timestamp.strftime('%Y%m%dT%H%M%SZ')}.json"
     report_data = {"timestamp_utc": timestamp.isoformat(),
-                   "namespace": namespace, "pvc": cfg["pvc"], "job": JOB_NAME,
+                   "namespace": namespace, "pvc": {**cfg["pvc"], "uid": identity["uid"]}, "job": JOB_NAME,
                    "model": layout["model"],
                    "verified_files": int(match.group(1)), "peak_pvc_used_kib": int(match.group(2)),
                    "source_images": [{"reference": reference, "observed_image_id": image_id}
@@ -589,6 +608,30 @@ def prepare(oc, cfg, resources, timeout, layout, report_dir):
         return 1
     print(f"PASS preparation: {match.group(1)} files verified; observed peak PVC used {match.group(2)} KiB; report {report_path}")
     return 0
+
+
+def claim_identity(oc, cfg):
+    pvc = oc.get("pvc", cfg["pvc"]["name"], "-n", cfg["namespace"])
+    metadata = pvc.get("metadata") or {}
+    uid = metadata.get("uid")
+    if (metadata.get("name") != cfg["pvc"]["name"] or not isinstance(uid, str)
+            or not uid.strip() or metadata.get("deletionTimestamp")):
+        raise OcError()
+    return {"name": metadata["name"], "uid": uid}
+
+
+def preparation_claim_matches(job, pod, identity):
+    template = job.get("spec", {}).get("template", {})
+    for resource in (template, pod):
+        annotations = (resource.get("metadata") or {}).get("annotations") or {}
+        if annotations.get(PVC_UID_ANNOTATION) != identity["uid"]:
+            return False
+        volumes = resource.get("spec", {}).get("volumes", [])
+        if not any(volume.get("name") == "model"
+                   and volume.get("persistentVolumeClaim", {}).get("claimName") == identity["name"]
+                   for volume in volumes):
+            return False
+    return True
 
 
 def verified_preparation(oc, cfg):
@@ -608,14 +651,18 @@ def verified_preparation(oc, cfg):
         pod = pods[0]
         images = [container.get("image") for container in pod.get("spec", {}).get("initContainers", [])]
         image_ids = [container.get("imageID") for container in pod.get("status", {}).get("initContainerStatuses", [])]
-        return images == WEIGHT_IMAGES and len(image_ids) == 4 and all(image_ids)
+        return (images == WEIGHT_IMAGES and len(image_ids) == 4 and all(image_ids)
+                and preparation_claim_matches(job, pod, claim_identity(oc, cfg)))
     except OcError:
         return False
 
 
 def install(oc, cfg, report_dir):
     if not verified_preparation(oc, cfg):
-        print("FAIL install: no verified preparation Job for the four pinned images; run make prepare and inspect its report")
+        print(f"FAIL install: preparation evidence must match PVC {cfg['pvc']['name']}'s current name and UID, "
+              "verified inventory, and four pinned images. Check PVC access and identity; stop serving before "
+              f"running make prepare PVC_NAME={cfg['pvc']['name']} NAMESPACE={cfg['namespace']} and inspect its report. "
+              "For a different or recreated claim, prepare that claim; inspect any completed directory before replacing it.")
         return 1
     try:
         report_root = Path(report_dir)

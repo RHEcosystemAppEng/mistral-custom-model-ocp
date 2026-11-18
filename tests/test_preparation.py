@@ -101,7 +101,7 @@ class PreparationInterfaceTests(unittest.TestCase):
             self.assertEqual((final / "model.safetensors").read_bytes(), expected)
             self.assertEqual(json.loads((final / ".complete.json").read_text())["verified_files"], 1)
 
-    def test_successful_prepare_records_observed_image_ids(self):
+    def test_successful_prepare_binds_evidence_to_claim_identity_and_observed_images(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             layout = root / "layout.json"
@@ -113,6 +113,7 @@ class PreparationInterfaceTests(unittest.TestCase):
             result = self.run_command("prepare", layout, {"OC": str(FAKE_OC),
                                                            "FAKE_OC_SCENARIO": "preparation_success",
                                                            "FAKE_OC_WEIGHT_IMAGES": json.dumps(IMAGES),
+                                                           "FAKE_OC_PREPARATION_STATE": str(root / "state.json"),
                                                            "REPORT_DIR": str(root / "reports")})
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             reports = list((root / "reports").glob("*.json"))
@@ -121,6 +122,11 @@ class PreparationInterfaceTests(unittest.TestCase):
             self.assertEqual(evidence["verified_files"], 4)
             self.assertEqual(len(evidence["source_images"]), 4)
             self.assertEqual(evidence["source_images"][0]["observed_image_id"], "observed-image-1")
+            self.assertEqual(evidence["pvc"]["name"], "mistral-weights")
+            self.assertEqual(evidence["pvc"]["uid"], "uid-mistral-weights")
+            job = json.loads((root / "state.json").read_text())["job"]
+            self.assertEqual(job["spec"]["template"]["metadata"]["annotations"]["mistral-validation/pvc-uid"],
+                             "uid-mistral-weights")
 
 
 if __name__ == "__main__":

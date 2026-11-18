@@ -104,6 +104,20 @@ class ServingWorkflowTests(unittest.TestCase):
         self.assertIn("preparation", result.stdout.lower())
         self.assertIn("make prepare", result.stdout)
 
+    def test_install_rejects_preparation_for_another_claim_without_cluster_changes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            mutations = Path(directory) / "mutations.jsonl"
+            result = self.run_make("install", OC=str(FAKE_OC), FAKE_OC_SCENARIO="serving_success",
+                                   PVC_NAME="other-weights", FAKE_OC_WEIGHT_IMAGES=json.dumps(IMAGES),
+                                   FAKE_OC_MARKER=str(Path(directory) / "state"),
+                                   FAKE_OC_MUTATIONS=str(mutations), REPORT_DIR=directory,
+                                   SERVING_TIMEOUT="1s")
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse(mutations.exists(), result.stdout + result.stderr)
+            self.assertIn("PVC", result.stdout)
+            self.assertIn("make prepare", result.stdout)
+            self.assertIn("other-weights", result.stdout)
+
     def test_only_optional_attention_scales_may_be_missing(self):
         result = self.run_make("render-deployment")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

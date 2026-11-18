@@ -167,9 +167,14 @@ operator decision about replacing it.
 The command also saves a timestamped JSON report under `reports/` (set
 `REPORT_DIR` to change the location). It records the four requested pinned
 references and the image IDs observed on the completed Job pod, plus the
-verified file count and peak PVC contents usage. Keep that report with the
-operator's validation evidence. No model bytes or registry credentials are
-written to it.
+verified file count, peak PVC contents usage, and the prepared PVC's name and
+immutable UID (`pvc.name` and `pvc.uid`). Before starting the Job, the operator
+records the current UID in its immutable pod template's
+`mistral-validation/pvc-uid` annotation; the template and actual preparation
+pod must both reference the selected claim and carry that UID. Preparation
+checks the claim identity again before reporting success. Keep that report
+with the operator's validation evidence. No model bytes or registry credentials
+are written to it.
 
 The 140Gi baseline is a minimum from the source specification, not proof that
 the extracted model fits. A later preparation run must measure peak PVC use.
@@ -198,10 +203,28 @@ startup probe allowance and the operator's wait for the predictor pod and
 InferenceService to become Ready. The readiness probe also uses `/health` and
 keeps the pod unready while the model loads. The install command refuses to
 apply serving resources unless the preparation Job completed, reported a
-verified inventory, and used the four expected pinned image references. It
-then checks the runtime's `/health` endpoint through a local pod port forward
-after confirming the pod's actual PVC mount is read-only and its SCC is a
-standard restricted or nonroot SCC. It sends a short chat request to port
+verified inventory, used the four expected pinned image references, and has
+claim identity evidence matching the current `PVC_NAME` and its UID. Before
+applying either serving resource, install reads the target PVC and compares
+its identity with the preparation Job template and completed pod. A different
+claim, a claim deleted and recreated under the same name, missing UID evidence
+(including Jobs from older versions), or an inaccessible claim fails this
+check without changing existing serving resources. A local preparation report
+alone does not authorize installation; retain the completed Job and its pod
+and verification logs.
+
+On an identity failure, confirm the namespace and `PVC_NAME`, restore read
+access to the claim and preparation evidence if needed, and select the claim
+that was actually prepared. If using a different or recreated claim, or if the
+old Job has no UID evidence, stop serving and run
+`make prepare NAMESPACE=<namespace> PVC_NAME=<intended-claim>`, then retry
+`make install` with the same inputs. Preparation preserves an existing
+completed model directory: inspect it before deciding to replace it or use a
+fresh claim. Do not relabel old evidence with a new claim's UID.
+
+After applying the resources, install checks the runtime's `/health` endpoint
+through a local pod port forward after confirming the pod's actual PVC mount
+is read-only and its SCC is a standard restricted or nonroot SCC. It sends a short chat request to port
 3000. Success requires a nonempty reply
 whose returned model name is `mistralai/mistral-large-instruct-2411`.
 For a protected RHOAI Service on port 8443, this check uses HTTPS with the

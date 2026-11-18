@@ -9,6 +9,14 @@ from pathlib import Path
 
 args = sys.argv[1:]
 scenario = os.environ.get("FAKE_OC_SCENARIO", "ready")
+preparation_state_path = os.environ.get("FAKE_OC_PREPARATION_STATE")
+preparation_state = (json.loads(Path(preparation_state_path).read_text())
+                     if preparation_state_path and Path(preparation_state_path).exists() else {})
+
+if args and args[0] in ("apply", "create", "delete", "patch", "replace", "annotate", "scale"):
+    if os.environ.get("FAKE_OC_MUTATIONS"):
+        with open(os.environ["FAKE_OC_MUTATIONS"], "a") as mutations:
+            mutations.write(json.dumps(args) + "\n")
 
 if scenario.startswith("cleanup"):
     state_path = Path(os.environ["FAKE_OC_STATE"])
@@ -63,6 +71,16 @@ if scenario == "preparation_success" and args and args[0] in ("apply", "delete")
     if args[0] == "delete" and "--cascade=foreground" not in args:
         print("previous preparation pod still copying", file=sys.stderr)
         sys.exit(1)
+    if preparation_state_path and args[0] == "apply":
+        item = json.load(sys.stdin)
+        if item["kind"] == "Job":
+            preparation_state["job"] = item
+            if os.environ.get("FAKE_OC_RECREATE_PVC_AFTER_PREPARATION"):
+                preparation_state["pvc"] = {"metadata": {"name": "mistral-weights", "uid": "replacement-uid"}}
+        elif item["kind"] == "PersistentVolumeClaim":
+            item["metadata"]["uid"] = "uid-" + item["metadata"]["name"]
+            preparation_state["pvc"] = item
+        Path(preparation_state_path).write_text(json.dumps(preparation_state))
     sys.exit(0)
 if scenario == "inventory" and args and args[0] in ("apply", "delete"):
     sys.exit(0)
@@ -113,11 +131,10 @@ if scenario.startswith("serving_") and args and args[0] == "port-forward":
 
     HTTPServer(("127.0.0.1", int(args[2].split(":")[0])), Handler).serve_forever()
     sys.exit(0)
-if scenario == "preparation_success" and args and args[0] == "logs":
-    print("PREPARATION_COMPLETE verified_files=4 peak_pvc_used_kib=1024")
-    sys.exit(0)
-if scenario.startswith("serving_") and args and args[0] == "logs":
-    print("PREPARATION_COMPLETE verified_files=4 peak_pvc_used_kib=1024")
+if (scenario == "preparation_success" or scenario.startswith("serving_")) and args and args[0] == "logs":
+    if os.environ.get("FAKE_OC_LOGS_UNAVAILABLE"):
+        sys.exit(1)
+    print(os.environ.get("FAKE_OC_VERIFICATION_LOG", "PREPARATION_COMPLETE verified_files=4 peak_pvc_used_kib=1024"))
     sys.exit(0)
 if not args or args[0] != "get":
     sys.exit(2)
@@ -131,7 +148,8 @@ objects = {
     "storageclasses": {"items": [{"metadata": {"name": "fast", "annotations": {"storageclass.kubernetes.io/is-default-class": "true"}}, "provisioner": "csi.example.test"}]},
     "storageclass": {"metadata": {"name": name}, "provisioner": "csi.example.test"},
     "persistentvolumes": {"items": []},
-    "pvc": {"spec": {"storageClassName": "fast", "accessModes": ["ReadWriteOnce"], "resources": {"requests": {"storage": "140Gi"}}}},
+    "pvc": {"metadata": {"name": name, "uid": f"uid-{name}"},
+            "spec": {"storageClassName": "fast", "accessModes": ["ReadWriteOnce"], "resources": {"requests": {"storage": "140Gi"}}}},
     "nodes": {"items": [{"metadata": {"name": "gpu-1"}, "spec": {"taints": [{"key": "p4-gpu", "effect": "NoSchedule"}]}, "status": {"allocatable": {"nvidia.com/gpu": "8"}, "conditions": [{"type": "Ready", "status": "True"}]}}]},
     "pods": {"items": []},
     "service": {"spec": {"ports": [{"port": 80}]}},
@@ -140,25 +158,28 @@ objects = {
     "datascienceclusters.datasciencecluster.opendatahub.io": {"items": [{"spec": {"components": {"kserve": {"managementState": "Managed"}}}}]},
     "deployment": {"metadata": {"name": name, "generation": 1}, "status": {"observedGeneration": 1, "availableReplicas": 1}},
 }
-if scenario == "preparation_success":
-    images = json.loads(os.environ["FAKE_OC_WEIGHT_IMAGES"])
-    objects["job"] = {"status": {"conditions": [{"type": "Complete", "status": "True"}]}}
-    objects["pods"] = {"items": [{"spec": {"initContainers": [{"image": image} for image in images]},
-                                   "status": {"initContainerStatuses": [
-                                       {"imageID": f"observed-image-{index}"} for index in range(1, 5)]}}]}
 if scenario == "inventory":
     part = int(name.rsplit("-", 1)[1]) if resource == "job" else int(next(value for value in args if value.startswith("batch.kubernetes.io/job-name=")).rsplit("-", 1)[1])
     objects["job"] = {"status": {"conditions": [{"type": "Complete", "status": "True"}]}}
     objects["pods"] = {"items": [{"spec": {"containers": [{"image": json.loads(os.environ["FAKE_OC_WEIGHT_IMAGES"])[part - 1]}]},
                            "status": {"containerStatuses": [{"imageID": f"observed-image-{part}"}]}}]}
-if scenario.startswith("serving_"):
+if scenario == "preparation_success" or scenario.startswith("serving_"):
     images = json.loads(os.environ["FAKE_OC_WEIGHT_IMAGES"])
-    objects["job"] = {"status": {"conditions": [{"type": "Complete", "status": "True"}]}}
+    prepared_metadata = {"annotations": {"mistral-validation/pvc-uid": "uid-mistral-weights"}}
+    prepared_volumes = [{"name": "model", "persistentVolumeClaim": {"claimName": "mistral-weights"}}]
+    template = {"metadata": prepared_metadata,
+                "spec": {"volumes": prepared_volumes, "initContainers": [{"image": image} for image in images]}}
+    objects["job"] = preparation_state.get("job", {"spec": {"template": template}})
+    objects["job"].setdefault("status", {"conditions": [{"type": "Complete", "status": "True"}]})
+    if "pvc" in preparation_state:
+        objects["pvc"] = preparation_state["pvc"]
     if resource == "pods" and any(value.startswith("batch.kubernetes.io/job-name=") for value in args):
-        objects["pods"] = {"items": [{"spec": {"initContainers": [{"image": image} for image in images]},
-                                       "status": {"initContainerStatuses": [
-                                           {"imageID": f"observed-image-{index}"} for index in range(1, 5)]}}]}
-    elif resource == "pods":
+        objects["pods"] = {"items": [preparation_state.get("pod", {
+            **objects["job"].get("spec", {}).get("template", {}),
+            "status": {"initContainerStatuses": [
+                {"imageID": f"observed-image-{index}"} for index in range(1, 5)]}})]}
+if scenario.startswith("serving_"):
+    if resource == "pods" and not any(value.startswith("batch.kubernetes.io/job-name=") for value in args):
         marker = os.environ["FAKE_OC_MARKER"] + "-pods"
         first = not os.path.exists(marker)
         open(marker, "a").close()
@@ -200,7 +221,8 @@ if scenario == "tainted_gpu" and resource == "nodes":
 if scenario == "no_secret" and resource == "secret":
     print("Error from server (NotFound)", file=sys.stderr)
     sys.exit(1)
-if (scenario == "no_pvc" or os.environ.get("FAKE_OC_SCENARIO_PVC") == "no_pvc") and resource == "pvc":
+if (scenario == "no_pvc" or (os.environ.get("FAKE_OC_SCENARIO_PVC") == "no_pvc"
+                             and "pvc" not in preparation_state)) and resource == "pvc":
     print("Error from server (NotFound)", file=sys.stderr)
     sys.exit(1)
 if scenario == "static_storage" and resource == "storageclasses":

@@ -9,6 +9,7 @@ import shlex
 MODEL = "mistral-large-instruct-2411"
 JOB_NAME = "mistral-2411-prepare"
 CONFIG_NAME = "mistral-2411-preparation"
+PVC_UID_ANNOTATION = "mistral-validation/pvc-uid"
 HELPER_IMAGE = "registry.access.redhat.com/ubi9/python-312:latest"
 SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 
