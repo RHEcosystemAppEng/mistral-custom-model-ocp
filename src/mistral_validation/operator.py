@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Operator configuration and read-only cluster preflight for Mistral validation."""
+"""Install, serve, and verify Mistral Large Instruct 2411 on OpenShift AI."""
 
 import argparse
 from datetime import datetime, timezone
@@ -335,22 +335,28 @@ def check_kserve(oc, cfg):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("preflight", "inventory", "render-config", "render-deployment", "render-discovery", "render-preparation", "prepare", "install", "status", "validate", "restart-verify", "runtime-check", "concurrency-check", "context-check", "uninstall", "purge", "verify-run", "purge-run"))
-    parser.add_argument("--oc", default="oc")
-    parser.add_argument("--namespace", default="mistral-custom-model-ocp")
-    parser.add_argument("--pull-secret", default="ibm-entitlement")
-    parser.add_argument("--pvc-name", default="mistral-weights")
-    parser.add_argument("--pvc-size", default="140Gi")
-    parser.add_argument("--storage-class", default="")
-    parser.add_argument("--gpu-count", default="8")
-    parser.add_argument("--layout", default=".local/2411-layout.json")
-    parser.add_argument("--prepare-timeout", default="14400s")
-    parser.add_argument("--serving-timeout", default="3600s")
-    parser.add_argument("--report-dir", default="reports")
-    parser.add_argument("--route-url", default="")
-    parser.add_argument("--cleanup-timeout", default="300s")
-    parser.add_argument("--run-report", default="")
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        epilog="Deployment sequence: preflight, inventory, prepare, install, status, validate. "
+               "Uninstall preserves model storage; purge explicitly deletes the model PVC.",
+    )
+    parser.add_argument("command", choices=("preflight", "inventory", "render-config", "render-deployment", "render-discovery", "render-preparation", "prepare", "install", "status", "validate", "restart-verify", "runtime-check", "concurrency-check", "context-check", "uninstall", "purge", "verify-run", "purge-run"),
+                        help="deployment, preview, verification, or cleanup operation")
+    parser.add_argument("--oc", default="oc", help="OpenShift CLI binary")
+    parser.add_argument("--namespace", default="mistral-custom-model-ocp", help="dedicated deployment namespace")
+    parser.add_argument("--pull-secret", default="ibm-entitlement", help="existing IBM registry pull secret in the namespace")
+    parser.add_argument("--pvc-name", default="mistral-weights", help="model persistent volume claim")
+    parser.add_argument("--pvc-size", default="140Gi", help="requested PVC capacity, at least 140Gi")
+    parser.add_argument("--storage-class", default="", help="PVC storage class; empty selects the cluster default")
+    parser.add_argument("--gpu-count", default="8", help="GPUs per serving pod and tensor parallel size")
+    parser.add_argument("--layout", default=".local/2411-layout.json", help="private model inventory path")
+    parser.add_argument("--prepare-timeout", default="14400s", help="inventory and preparation timeout in seconds with an s suffix")
+    parser.add_argument("--serving-timeout", default="3600s", help="startup and readiness timeout in seconds with an s suffix")
+    parser.add_argument("--report-dir", default="reports", help="local operation report directory")
+    parser.add_argument("--route-url", default="", help="external HTTPS route; empty uses InferenceService status")
+    parser.add_argument("--cleanup-timeout", default="300s", help="per-request cleanup timeout in seconds with an s suffix")
+    parser.add_argument("--run-report", default="", help="verification.json path for purge-run")
     args = parser.parse_args()
     try:
         cfg = config(args)

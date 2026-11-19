@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "mistral-custom-model-ocp"
 version = "0.1.0"
-description = "Validate the Mistral 2411 model on OpenShift AI"
+description = "Install, serve, and verify the Mistral 2411 model on OpenShift AI"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = ["PyYAML>=6.0.2"]
