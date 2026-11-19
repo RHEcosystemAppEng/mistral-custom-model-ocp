@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -29,7 +30,7 @@ class RunbookTests(unittest.TestCase):
         if token:
             env["RHOAI_TOKEN"] = token
         return subprocess.run([
-            "python3", str(ROOT / "scripts/operator.py"), command, "--namespace", "runbook",
+            sys.executable, "-m", "mistral_validation", command, "--namespace", "runbook",
             "--oc", str(ROOT / "tests/fake_oc.py"), "--report-dir", str(self.root), *options],
             env=env, capture_output=True, text=True)
 

@@ -1,17 +1,12 @@
 """Fast checks must read only bounded safetensors headers, never weight data."""
 
-import importlib.util
 import io
 import json
-from pathlib import Path
 import struct
 import unittest
 
 
-spec = importlib.util.spec_from_file_location(
-    "runtime_check", Path(__file__).resolve().parents[1] / "scripts" / "runtime_check.py")
-runtime_check = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(runtime_check)
+from mistral_validation import runtime_check
 
 
 class RuntimeHeaderTests(unittest.TestCase):

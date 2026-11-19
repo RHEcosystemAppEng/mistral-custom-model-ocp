@@ -1,15 +1,10 @@
 """Kubelet probe evidence must belong to the current runtime process."""
 
-import importlib.util
-from pathlib import Path
 import unittest
 from unittest.mock import Mock
 
 
-spec = importlib.util.spec_from_file_location(
-    "serving", Path(__file__).resolve().parents[1] / "scripts" / "serving.py")
-serving = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(serving)
+from mistral_validation import serving
 
 
 class HealthObservationTests(unittest.TestCase):

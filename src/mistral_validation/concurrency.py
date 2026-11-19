@@ -11,8 +11,8 @@ import time
 from urllib.parse import urlsplit
 from typing import Any
 
-from serving import MODEL, SERVED_MODEL
-from validation import PAYLOAD, valid_chat, validate
+from .serving import MODEL, SERVED_MODEL
+from .validation import PAYLOAD, valid_chat, validate
 
 
 REQUEST_COUNT = 20

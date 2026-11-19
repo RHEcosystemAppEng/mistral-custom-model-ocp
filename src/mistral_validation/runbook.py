@@ -11,8 +11,8 @@ import sys
 import time
 from typing import Any
 
-from preparation import JOB_NAME
-from serving import MODEL
+from .preparation import JOB_NAME
+from .serving import MODEL
 
 
 STAGES = ("preflight", "inventory", "preparation_interruption", "prepare", "install", "status",
@@ -90,7 +90,7 @@ def persist(root, evidence):
 
 def purge_run(oc, cfg, args, oc_error):
     """Explicitly finish cleanup of a recorded run; retain pending human review."""
-    from cleanup import cleanup
+    from .cleanup import cleanup
 
     root = Path(args.run_report).resolve().parent
     try:
@@ -181,7 +181,7 @@ def run(oc, cfg, args, oc_error):
     def save():
         persist(root, evidence)
 
-    common = [sys.executable, str(Path(__file__).with_name("operator.py"))]
+    common = [sys.executable, "-m", "mistral_validation"]
     options = ["--oc", args.oc, "--namespace", cfg["namespace"], "--pull-secret", cfg["pull_secret"],
                "--pvc-name", cfg["pvc"]["name"], "--pvc-size", cfg["pvc"]["size"],
                "--storage-class", cfg["pvc"]["storage_class"] or "", "--gpu-count", str(cfg["gpu_count"]),

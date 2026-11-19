@@ -1,18 +1,13 @@
 """The protected KServe Service requires authenticated, verified TLS."""
 
-import importlib.util
 import io
 import json
-from pathlib import Path
 import ssl
 import unittest
 from unittest.mock import Mock, patch
 
 
-spec = importlib.util.spec_from_file_location(
-    "serving", Path(__file__).resolve().parents[1] / "scripts" / "serving.py")
-serving = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(serving)
+from mistral_validation import serving
 
 
 class ProtectedServiceTests(unittest.TestCase):

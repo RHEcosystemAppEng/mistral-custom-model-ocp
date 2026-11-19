@@ -10,11 +10,55 @@ The live cluster observations and files under `docs/evidence/` were recorded in
 the source repository before this bootstrap. They describe those original runs;
 this repository has not yet been validated against a live cluster.
 
-For local development, Python 3 and `make` are sufficient; there are no third-party
-Python dependencies. Run `make test` for the tests, which use a fake OpenShift CLI,
-or `make render-config` and `make render-deployment` to inspect generated objects
-without contacting a cluster. Run the cluster commands below only after supplying
-a dedicated namespace and its existing pull secret.
+For local development, install the Python package as described below. Run
+`make test` for the tests, which use a fake OpenShift CLI, or `make render-config`
+and `make render-deployment` to inspect generated objects without contacting a
+cluster. Run the cluster commands below only after supplying a dedicated namespace
+and its existing pull secret.
+
+## Python setup and development
+
+The validation CLI supports Python 3.10 and newer, including Python 3.14. It has
+no third-party Python runtime dependencies. Use standard `venv` and `pip`;
+neither uv nor Helm is required.
+
+```sh
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -e '.[dev]'
+mistral-validate --help
+mistral-validate render-deployment
+python -m mypy
+python -m unittest discover -s tests -p test_preparation.py -v
+make test
+```
+
+The `dev` extra installs mypy for typechecking; the tests use the standard-library
+`unittest` runner. `make typecheck` runs the same mypy configuration. The test
+suite also uses `make`, `openssl` (for local HTTPS fixtures), and `du`, available
+on typical macOS/Linux development systems. Tests do not require a cluster,
+`oc`, GPU libraries, or model weights. The packaging tests create an isolated
+virtual environment and use pip to build and install a non-editable distribution;
+pip needs access to the configured package index for build dependencies.
+
+For a regular installation, run `python -m pip install .` instead of the editable
+install above. Once installed, `mistral-validate --help` and
+`mistral-validate render-deployment` work from any directory.
+`python -m mistral_validation` is the equivalent module entry point, and every
+Makefile workflow delegates to it using `PYTHON` (default `python3` from `PATH`).
+Activate the environment before running Make, or pass
+`make render-config PYTHON="$PWD/.venv/bin/python"`. Layout and report paths
+are resolved relative to the directory where the command is invoked; use
+absolute paths when running from elsewhere.
+
+The preparation worker and runtime diagnostic are included in the installed
+package and sent to their cluster containers when needed. GPU libraries belong
+to the pinned runtime image and are not local Python dependencies.
+
+Generated environments (`.venv/`), bytecode, typechecker caches, packaging output
+(`build/`, `dist/`, `*.egg-info/`), private inventories (`.local/`), and reports
+(`reports/`) are excluded from Git. No lockfile is required for this
+standard-library runtime.
 
 This repository is building an operator workflow to validate the private
 `mistral-large-instruct-2411` model on Red Hat OpenShift AI (RHOAI) and KServe.
@@ -23,7 +67,8 @@ A100 40GB GPUs. No other cluster, hardware, or GPU count is claimed as verified.
 
 ## Preflight
 
-Install `oc`, Python 3, and `make`. Log in to the target cluster with `oc login`.
+Install `oc` and `make`, and set up the Python environment above. Log in to the
+target cluster with `oc login`.
 Use a dedicated namespace. An existing namespace is selected; an absent one is
 created. Supply an existing IBM `kubernetes.io/dockerconfigjson` pull secret in
 that namespace through your normal secret management process. Never put the

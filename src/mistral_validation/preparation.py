@@ -32,7 +32,7 @@ def read_layout(path, weight_images):
     files = layout.get("files")
     if not isinstance(files, list) or not files:
         raise ValueError("LAYOUT files must list the inventory")
-    seen = set()
+    seen: set[str] = set()
     for entry in files:
         if not isinstance(entry, dict):
             raise ValueError("LAYOUT files entries must be objects")

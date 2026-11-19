@@ -7,7 +7,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
-from serving import SERVED_MODEL
+from .serving import SERVED_MODEL
 
 
 class NoRedirect(HTTPRedirectHandler):

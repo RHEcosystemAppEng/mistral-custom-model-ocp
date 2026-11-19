@@ -6,7 +6,6 @@ import subprocess
 import threading
 import unittest
 from unittest.mock import patch
-import sys
 import time
 
 import test_validate as route_tests
@@ -92,9 +91,7 @@ class ConcurrencyWorkflowTests(unittest.TestCase):
 
 class RequestDeadlineTests(unittest.TestCase):
     def test_stalled_dns_returns_timeout_without_waiting_for_resolver(self):
-        sys.path.insert(0, str(ROOT / "scripts"))
-        self.addCleanup(sys.path.remove, str(ROOT / "scripts"))
-        import concurrency
+        from mistral_validation import concurrency
         release = threading.Event()
         self.addCleanup(release.set)
 

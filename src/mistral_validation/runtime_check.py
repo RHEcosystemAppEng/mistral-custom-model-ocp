@@ -8,6 +8,7 @@ import sys
 import tempfile
 import time
 import types
+from typing import Any
 
 MARKER = "RUNTIME_CHECK "
 
@@ -33,7 +34,7 @@ def metadata_main(runtime_args, runtime_env):
     import os
     os.environ.update(runtime_env)
     start = time.monotonic()
-    evidence = {"metadata_only": True, "checked_tensor_parallel_size": 1,
+    evidence: dict[str, Any] = {"metadata_only": True, "checked_tensor_parallel_size": 1,
                 "shards": 0, "tensors": 0, "stage": "imports"}
     try:
         import torch
@@ -104,7 +105,7 @@ def metadata_main(runtime_args, runtime_env):
 
 
 def check(oc, cfg, container, report_dir, oc_error):
-    from serving import MODEL, mounted_readonly, save_report
+    from .serving import MODEL, mounted_readonly, save_report
 
     namespace = cfg["namespace"]
     try:

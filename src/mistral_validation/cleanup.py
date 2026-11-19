@@ -2,7 +2,7 @@
 
 import re
 
-from preparation import CONFIG_NAME, JOB_NAME, MODEL
+from .preparation import CONFIG_NAME, JOB_NAME, MODEL
 
 
 # Explicit names avoid deleting unrelated workloads or namespace infrastructure.

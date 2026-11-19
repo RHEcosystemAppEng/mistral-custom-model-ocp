@@ -3,6 +3,7 @@ import hashlib
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -89,12 +90,12 @@ class PreparationInterfaceTests(unittest.TestCase):
                                                      "sha256": hashlib.sha256(expected).hexdigest()}]}))
             env = {**os.environ, "PREPARATION_ROOT": str(root), "PREPARATION_LAYOUT": str(layout)}
             (stage / "model.safetensors").write_bytes(b"interrupted")
-            failed = subprocess.run(["python3", str(ROOT / "scripts" / "prepare_worker.py")],
+            failed = subprocess.run([sys.executable, "-m", "mistral_validation.prepare_worker"],
                                     env=env, capture_output=True, text=True)
             self.assertNotEqual(failed.returncode, 0)
             self.assertFalse((root / "mistral-large-instruct-2411").exists())
             (stage / "model.safetensors").write_bytes(expected)
-            success = subprocess.run(["python3", str(ROOT / "scripts" / "prepare_worker.py")],
+            success = subprocess.run([sys.executable, "-m", "mistral_validation.prepare_worker"],
                                      env=env, capture_output=True, text=True)
             self.assertEqual(success.returncode, 0, success.stdout + success.stderr)
             final = root / "mistral-large-instruct-2411"

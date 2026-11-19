@@ -13,16 +13,16 @@ import sys
 import tempfile
 import time
 
-from preparation import JOB_NAME, PVC_UID_ANNOTATION, read_layout, render as render_preparation, render_discovery
-from inventory import collect as collect_inventory
-from serving import observe as observe_serving
-from serving import verify_restart
-from validation import validate as validate_route
-from runtime_check import check as check_runtime
-from concurrency import check as check_concurrency
-from context_check import check as check_context
-from cleanup import cleanup
-from runbook import run as run_runbook, purge_run
+from .preparation import JOB_NAME, PVC_UID_ANNOTATION, read_layout, render as render_preparation, render_discovery
+from .inventory import collect as collect_inventory
+from .serving import observe as observe_serving
+from .serving import verify_restart
+from .validation import validate as validate_route
+from .runtime_check import check as check_runtime
+from .concurrency import check as check_concurrency
+from .context_check import check as check_context
+from .cleanup import cleanup
+from .runbook import run as run_runbook, purge_run
 
 
 WEIGHT_IMAGES = [
@@ -354,7 +354,7 @@ def check_gpu(oc, cfg):
         pods = oc.get("pods", "-A").get("items", [])
     except OcError:
         return report("GPU placement", "need permission to list nodes and pods across namespaces to calculate available GPUs")
-    used = {}
+    used: dict[str, int] = {}
     for pod in pods:
         node_name = pod.get("spec", {}).get("nodeName")
         if node_name and pod.get("status", {}).get("phase") not in ("Succeeded", "Failed"):

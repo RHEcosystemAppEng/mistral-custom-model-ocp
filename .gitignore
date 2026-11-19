@@ -14,3 +14,8 @@ __pycache__/
 .env.*
 !.env.example
 *.py[cod]
+
+# Python distributions and build metadata
+/build/
+/dist/
+*.egg-info/

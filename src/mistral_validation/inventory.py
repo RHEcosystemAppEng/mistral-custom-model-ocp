@@ -8,8 +8,9 @@ from pathlib import Path
 import re
 import tempfile
 import time
+from typing import Any
 
-from preparation import MODEL, SHA256, read_layout, render_discovery
+from .preparation import MODEL, SHA256, read_layout, render_discovery
 
 
 ROOT = f"/models/{MODEL}/"
@@ -17,7 +18,7 @@ SHARDS = {f"model-{number:05d}-of-00026.safetensors" for number in range(1, 27)}
 
 
 def parse_logs(logs, images):
-    entries = {}
+    entries: dict[str, dict[str, Any]] = {}
     indexes = []
     counts = []
     for part, log in enumerate(logs, 1):
