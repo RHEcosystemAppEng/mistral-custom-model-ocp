@@ -127,6 +127,9 @@ operator concatenates sorted `part_*` shards, but that general procedure is not
 the 2411 path. Discovery against the four pinned images on `ai-dev04` observed a
 26-shard `model-*-of-00026.safetensors` set and no consolidated file, which
 matches IBM's statement. Preparation therefore uses `overlay` assembly.
+The operator approved retaining these separate shards. This confirmed
+clarification supersedes the original specification's consolidation requirement
+for 2411; see the [approved scope and proposed upstream correction](docs/verification-scope.md).
 
 IBM has no published checksum or byte size for a reconstructed file. Integrity
 comes from pulling the part images by `@sha256` digest, so each shard is exactly
@@ -648,9 +651,14 @@ Raw child command output, API objects, environment, prompts and responses are
 not copied into the bundle. If a stage fails, inspect the named stage report,
 then use the troubleshooting commands below. Retain the complete private bundle.
 
-Human answer relevance remains **pending** for this implementation, at the
-operator's request. HTTP success and structural chat validation do not establish
-answer relevance. For a future human review, use three short synthetic questions
+The operator approved merging with relevance review pending, then reported a
+human review with the outcome **"Mostly relevant"**. Its sample count, review UTC
+timestamp, reviewer identity, and association with a recorded run are unknown.
+The [review addendum](docs/verification-scope.md#human-review-addendum) records
+that qualified outcome separately from historical reports. Run-specific human
+review metadata remains pending; the statement alone does not make machine-readable
+verification pass. HTTP success and structural chat validation do not establish
+answer relevance. For a future review tied to a specific run, use three short synthetic questions
 with independently known answers, inspect the responses transiently, and record
 only the review UTC timestamp, sample count, a reviewer identifier approved for
 disclosure, and a conclusion of relevant, mixed, or irrelevant. Do not save
@@ -695,7 +703,11 @@ and backing-PV removal. The tested configuration was OCP 4.22.20, RHOAI 3.5.2,
 and eight NVIDIA A100-SXM4-40GB GPUs. See the
 [short verification summary](docs/evidence/ai-dev04-20261118.md) and
 [machine-readable bundle](docs/evidence/ai-dev04-20261118.json).
-Human answer relevance remains pending at the operator's request. Any claim
+That historical bundle records human answer relevance as pending. The later
+operator outcome, **"Mostly relevant"**, is documented in the
+[separate addendum](docs/verification-scope.md#human-review-addendum) without
+assigning it to that run or changing its machine-readable result. These are
+source-repository observations, not a new live validation of this checkout. Any claim
 must name these exact versions, GPU type/count, pinned images and configuration
 hash, and disclose pending or failed checks. Other configurations and answer
 quality remain outside this claim.
