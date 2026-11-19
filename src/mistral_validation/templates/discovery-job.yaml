@@ -1,0 +1,27 @@
+# Values in {{braces}} are supplied by the operator renderer.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mistral-2411-discover-{{part}}
+  namespace: '{{namespace}}'
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      imagePullSecrets:
+      - name: '{{pull_secret}}'
+      containers:
+      - name: inventory
+        image: '{{image}}'
+        imagePullPolicy: Always
+        command:
+        - /bin/sh
+        - -ec
+        - |
+          set -eu
+          test -d /models/mistral-large-instruct-2411 || { echo INVENTORY_ROOT_MISSING; exit 1; }
+          find /models/mistral-large-instruct-2411 -type f -exec sh -ec 'for file do bytes=$(wc -c < "$file"); digest=$(sha256sum "$file" | cut -d " " -f 1); printf "FILE\t%s\t%s\t%s\n" "$file" "$bytes" "$digest"; done' sh {} +
+          if [ -f /models/mistral-large-instruct-2411/model.safetensors.index.json ]; then
+            printf 'INDEX\t'; base64 < /models/mistral-large-instruct-2411/model.safetensors.index.json | tr -d '\n'; printf '\n'
+          fi

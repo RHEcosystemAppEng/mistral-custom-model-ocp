@@ -1,0 +1,74 @@
+# Values in {{braces}} come from the validated operator configuration.
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: mistral-runtime
+  namespace: '{{namespace}}'
+spec:
+  multiModel: false
+  supportedModelFormats:
+    - name: vLLM
+      autoSelect: false
+  containers:
+    - name: kserve-container
+      image: cp.icr.io/cp/cpd/mistral-inference-server@sha256:03512d44a97adb6aff115e025df819ec05b249728471effe6a5615880af593a9
+      command:
+        - /bin/sh
+        - -c
+        - 'mkdir -p "$PROMETHEUS_MULTIPROC_DIR" && exec python3 -m vllm.entrypoints.openai.api_server "$@"'
+        - mistral-runtime
+      env:
+        - name: HOME
+          value: /var/tmp/mistral-runtime-home
+        - name: TMPDIR
+          value: /var/tmp
+        - name: PROMETHEUS_MULTIPROC_DIR
+          value: /var/tmp/prometheus_metrics
+        - name: XDG_CACHE_HOME
+          value: /var/tmp/mistral-runtime-cache
+        - name: VLLM_CACHE_ROOT
+          value: /var/tmp/mistral-runtime-vllm
+        - name: TORCH_EXTENSIONS_DIR
+          value: /var/tmp/mistral-runtime-torch
+        # Override the image's /tmp path for OpenShift's assigned UID.
+        - name: TRITON_CACHE_DIR
+          value: /var/tmp/.triton_cache
+        - name: TORCHINDUCTOR_CACHE_DIR
+          value: /var/tmp/.torchinductor_cache
+        # Read safetensors per worker: the default FP8 NCCL broadcast fails on A100.
+        - name: VLLM_USE_FALLBACK_LOADER
+          value: '1'
+      args:
+        - --model=/mnt/models/mistral-large-instruct-2411
+        - --served-model-name=mistralai/mistral-large-instruct-2411
+        - --port=3000
+        - --max-model-len=32768
+        - --max-num-seqs=20
+        - --kv-cache-dtype=auto
+        # Optional FP8 attention scales are unused with the BF16 KV cache.
+        - '--allowed-missing-params=model\.layers\.[0-9]+\.self_attn\.attn\.(q|k|v|prob)_scale'
+        - --tool-call-parser=mistral
+        - --enable-auto-tool-choice
+        - --disable-log-requests
+        - '--tensor-parallel-size={{gpu_count}}'
+      ports:
+        - containerPort: 3000
+          protocol: TCP
+      startupProbe:
+        httpGet:
+          path: /health
+          port: 3000
+        periodSeconds: 10
+        failureThreshold: '{{startup_failure_threshold}}'
+      readinessProbe:
+        httpGet:
+          path: /health
+          port: 3000
+        periodSeconds: 5
+        failureThreshold: 1
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ALL]
+        seccompProfile:
+          type: RuntimeDefault

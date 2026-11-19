@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mistral-custom-model-ocp"
+version = "0.1.0"
+description = "Install, serve, and verify the Mistral 2411 model on OpenShift AI"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["PyYAML>=6.0.2"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+
+[project.optional-dependencies]
+dev = ["mypy>=1.15", "types-PyYAML>=6.0.12"]
+
+[project.scripts]
+mistral-validate = "mistral_validation.operator:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+mistral_validation = ["templates/*.yaml"]
+
+[tool.mypy]
+files = ["src/mistral_validation"]
+python_version = "3.10"
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = ["torch.*", "vllm.*"]
+ignore_missing_imports = true

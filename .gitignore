@@ -1,0 +1,21 @@
+/issues/
+__pycache__/
+/reports/
+/.local/
+
+# Local development and credentials
+/.idea/
+/.venv/
+/.mypy_cache/
+/.pytest_cache/
+/.ruff_cache/
+.DS_Store
+.env
+.env.*
+!.env.example
+*.py[cod]
+
+# Python distributions and build metadata
+/build/
+/dist/
+*.egg-info/
