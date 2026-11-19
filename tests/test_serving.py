@@ -54,6 +54,8 @@ class ServingWorkflowTests(unittest.TestCase):
             self.assertIn(argument, container["args"])
         self.assertEqual(container["ports"][0]["containerPort"], 3000)
         self.assertFalse(container["securityContext"]["allowPrivilegeEscalation"])
+        self.assertEqual(container["securityContext"]["capabilities"], {"drop": ["ALL"]})
+        self.assertEqual(container["securityContext"]["seccompProfile"], {"type": "RuntimeDefault"})
         self.assertEqual(container["startupProbe"]["httpGet"], {"path": "/health", "port": 3000})
         self.assertEqual(container["readinessProbe"]["httpGet"], {"path": "/health", "port": 3000})
         self.assertEqual(container["startupProbe"]["failureThreshold"] * container["startupProbe"]["periodSeconds"], 120)
@@ -97,6 +99,55 @@ class ServingWorkflowTests(unittest.TestCase):
             evidence = json.loads(result.stdout)
             self.assertTrue(evidence["metrics_exists"])
             self.assertEqual(evidence["args"], arguments)
+
+    def test_install_submits_the_previewed_resources_with_overrides(self):
+        cases = ({"NAMESPACE": "mistral-custom-model-ocp", "PULL_SECRET": "ibm-entitlement",
+                  "PVC_NAME": "mistral-weights", "GPU_COUNT": "8", "SERVING_TIMEOUT": "3600s"},
+                 {"NAMESPACE": "preview-check", "PULL_SECRET": "private-registry",
+                  "PVC_NAME": "prepared-model", "GPU_COUNT": "2", "SERVING_TIMEOUT": "11s"})
+        for settings in cases:
+            with self.subTest(settings=settings), tempfile.TemporaryDirectory() as directory:
+                applied = Path(directory) / "applied.jsonl"
+                preview = self.run_make("render-deployment", OC="/nonexistent/oc", **settings)
+                self.assertEqual(preview.returncode, 0, preview.stdout + preview.stderr)
+                resources = json.loads(preview.stdout)["items"]
+                result = self.run_make(
+                    "install", OC=str(FAKE_OC), FAKE_OC_SCENARIO="serving_success",
+                    FAKE_OC_PREPARED_PVC=settings["PVC_NAME"],
+                    FAKE_OC_APPLIED_RESOURCES=str(applied),
+                    FAKE_OC_MARKER=str(Path(directory) / "state"), REPORT_DIR=directory,
+                    FAKE_OC_WEIGHT_IMAGES=json.dumps(IMAGES), **settings)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual([json.loads(line) for line in applied.read_text().splitlines()],
+                                 resources)
+                runtime, service = resources
+                self.assertTrue(all(item["metadata"]["namespace"] == settings["NAMESPACE"]
+                                    for item in resources))
+                container = runtime["spec"]["containers"][0]
+                self.assertIn(f"--tensor-parallel-size={settings['GPU_COUNT']}", container["args"])
+                self.assertEqual(container["startupProbe"]["failureThreshold"],
+                                 360 if settings["SERVING_TIMEOUT"] == "3600s" else 2)
+                predictor = service["spec"]["predictor"]
+                self.assertEqual(predictor["imagePullSecrets"], [{"name": settings["PULL_SECRET"]}])
+                self.assertEqual(predictor["model"]["storageUri"], f"pvc://{settings['PVC_NAME']}/")
+                self.assertEqual(predictor["model"]["resources"], {
+                    "requests": {"nvidia.com/gpu": int(settings["GPU_COUNT"])},
+                    "limits": {"nvidia.com/gpu": int(settings["GPU_COUNT"])}})
+
+    def test_invalid_serving_inputs_fail_before_any_cluster_access(self):
+        for command in ("render-deployment", "install"):
+            for settings in ({"NAMESPACE": "invalid/name"}, {"PULL_SECRET": "bad:secret"},
+                             {"PVC_NAME": "bad/claim"}, {"GPU_COUNT": "0"},
+                             {"SERVING_TIMEOUT": "0s"}):
+                with self.subTest(command=command, settings=settings), tempfile.TemporaryDirectory() as directory:
+                    marker = Path(directory) / "oc-called"
+                    oc = Path(directory) / "oc"
+                    oc.write_text(f"#!/bin/sh\ntouch '{marker}'\nexit 1\n")
+                    oc.chmod(0o755)
+                    result = self.run_make(command, OC=str(oc), **settings)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("error:", result.stderr)
+                    self.assertFalse(marker.exists(), result.stdout + result.stderr)
 
     def test_install_requires_verified_preparation_before_applying(self):
         result = self.run_make("install", OC=str(FAKE_OC), FAKE_OC_SCENARIO="ready")

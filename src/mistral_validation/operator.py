@@ -4,7 +4,6 @@
 import argparse
 from datetime import datetime, timezone
 import json
-import math
 import os
 from pathlib import Path
 import re
@@ -15,6 +14,7 @@ import time
 
 from .preparation import JOB_NAME, PVC_UID_ANNOTATION, read_layout, render as render_preparation, render_discovery
 from .inventory import collect as collect_inventory
+from .deployment import RUNTIME_IMAGE, render as deployment_config
 from .serving import observe as observe_serving
 from .serving import verify_restart
 from .validation import validate as validate_route
@@ -31,10 +31,6 @@ WEIGHT_IMAGES = [
     "cp.icr.io/cp/cpd/mistral-large-instruct-2411-part3@sha256:188ffd7990437409be9f66cf35e84ac34b87115a8edf553dca629339db15be51",
     "cp.icr.io/cp/cpd/mistral-large-instruct-2411-part4@sha256:b1465deaeb1f8beb13fa71299ab6b5751678dfcdbae64ec989a779d9052ae3ce",
 ]
-RUNTIME_IMAGE = "cp.icr.io/cp/cpd/mistral-inference-server@sha256:03512d44a97adb6aff115e025df819ec05b249728471effe6a5615880af593a9"
-# Optional FP8 attention scales, unused with the model's BF16 KV cache. The
-# vendor loader otherwise rejects these parameters before assigning defaults.
-ATTENTION_SCALE_PATTERN = r"model\.layers\.[0-9]+\.self_attn\.attn\.(q|k|v|prob)_scale"
 NAME = re.compile(r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$")
 QUANTITY = re.compile(r"^(\d+)(Ki|Mi|Gi|Ti|K|M|G|T)?$")
 UNITS = {None: 1, "Ki": 1024, "Mi": 1024**2, "Gi": 1024**3, "Ti": 1024**4,
@@ -66,93 +62,21 @@ def config(args):
         raise ValueError("PVC_SIZE must be at least the 140Gi baseline")
     if not re.fullmatch(r"[1-9][0-9]*s", args.serving_timeout):
         raise ValueError("SERVING_TIMEOUT must be a positive number of seconds")
-    return {
+    cfg = {
         "namespace": args.namespace,
         "pull_secret": args.pull_secret,
         "pvc": {"name": args.pvc_name, "size": args.pvc_size, "storage_class": args.storage_class or None},
         "gpu_count": gpu_count,
         "serving_timeout_seconds": int(args.serving_timeout[:-1]),
-        "serving": {
-            "gpu_resources": {"requests": {"nvidia.com/gpu": gpu_count}, "limits": {"nvidia.com/gpu": gpu_count}},
-            "tensor_parallel_size": gpu_count,
-            "tolerations": [{"key": "p4-gpu", "operator": "Exists", "effect": "NoSchedule"}],
-        },
         "images": {"weights": WEIGHT_IMAGES, "runtime": RUNTIME_IMAGE},
     }
-
-
-def deployment_config(cfg):
-    """Render the planned KServe objects from the same effective GPU input."""
-    return {
-        "apiVersion": "v1", "kind": "List", "items": [
-            {
-                "apiVersion": "serving.kserve.io/v1alpha1", "kind": "ServingRuntime",
-                "metadata": {"name": "mistral-runtime", "namespace": cfg["namespace"]},
-                "spec": {
-                    "multiModel": False,
-                    "supportedModelFormats": [{"name": "vLLM", "autoSelect": False}],
-                    "containers": [{
-                        "name": "kserve-container", "image": RUNTIME_IMAGE,
-                        "command": [
-                            "/bin/sh", "-c",
-                            'mkdir -p "$PROMETHEUS_MULTIPROC_DIR" && '
-                            'exec python3 -m vllm.entrypoints.openai.api_server "$@"',
-                            "mistral-runtime",
-                        ],
-                        "env": [
-                            {"name": "HOME", "value": "/var/tmp/mistral-runtime-home"},
-                            {"name": "TMPDIR", "value": "/var/tmp"},
-                            {"name": "PROMETHEUS_MULTIPROC_DIR", "value": "/var/tmp/prometheus_metrics"},
-                            {"name": "XDG_CACHE_HOME", "value": "/var/tmp/mistral-runtime-cache"},
-                            {"name": "VLLM_CACHE_ROOT", "value": "/var/tmp/mistral-runtime-vllm"},
-                            {"name": "TORCH_EXTENSIONS_DIR", "value": "/var/tmp/mistral-runtime-torch"},
-                            # The image sets TRITON_CACHE_DIR=/tmp/.triton_cache,
-                            # overriding HOME/XDG and failing under the assigned UID.
-                            {"name": "TRITON_CACHE_DIR", "value": "/var/tmp/.triton_cache"},
-                            {"name": "TORCHINDUCTOR_CACHE_DIR", "value": "/var/tmp/.torchinductor_cache"},
-                            # The pinned vendor loader broadcasts FP8 weights through
-                            # NCCL by default, which fails on A100 (sm80). Its fallback
-                            # reads safetensors per worker without that broadcast.
-                            {"name": "VLLM_USE_FALLBACK_LOADER", "value": "1"},
-                        ],
-                        "args": ["--model=/mnt/models/mistral-large-instruct-2411",
-                                 "--served-model-name=mistralai/mistral-large-instruct-2411",
-                                 "--port=3000", "--max-model-len=32768", "--max-num-seqs=20",
-                                 "--kv-cache-dtype=auto",
-                                 f"--allowed-missing-params={ATTENTION_SCALE_PATTERN}",
-                                 "--tool-call-parser=mistral", "--enable-auto-tool-choice",
-                                 "--disable-log-requests", f"--tensor-parallel-size={cfg['gpu_count']}"],
-                        "ports": [{"containerPort": 3000, "protocol": "TCP"}],
-                        "startupProbe": {"httpGet": {"path": "/health", "port": 3000},
-                                         "periodSeconds": 10,
-                                         "failureThreshold": math.ceil(cfg["serving_timeout_seconds"] / 10)},
-                        "readinessProbe": {"httpGet": {"path": "/health", "port": 3000},
-                                           "periodSeconds": 5, "failureThreshold": 1},
-                        "securityContext": {"allowPrivilegeEscalation": False,
-                                            "capabilities": {"drop": ["ALL"]},
-                                            "seccompProfile": {"type": "RuntimeDefault"}},
-                    }],
-                },
-            },
-            {
-                "apiVersion": "serving.kserve.io/v1beta1", "kind": "InferenceService",
-                "metadata": {"name": "mistral-large-instruct-2411", "namespace": cfg["namespace"],
-                             "annotations": {"storage.kserve.io/readonly": "true",
-                                             "security.opendatahub.io/enable-auth": "true"},
-                             "labels": {"networking.kserve.io/visibility": "exposed"}},
-                "spec": {"predictor": {
-                    "minReplicas": 1, "maxReplicas": 1,
-                    "tolerations": cfg["serving"]["tolerations"],
-                    "imagePullSecrets": [{"name": cfg["pull_secret"]}],
-                    "model": {
-                        "modelFormat": {"name": "vLLM"}, "runtime": "mistral-runtime",
-                        "storageUri": f"pvc://{cfg['pvc']['name']}/",
-                        "resources": cfg["serving"]["gpu_resources"],
-                    },
-                }},
-            },
-        ],
+    predictor = deployment_config(cfg)["items"][1]["spec"]["predictor"]
+    cfg["serving"] = {
+        "gpu_resources": predictor["model"]["resources"],
+        "tensor_parallel_size": gpu_count,
+        "tolerations": predictor["tolerations"],
     }
+    return cfg
 
 
 class OcError(Exception):

@@ -9,6 +9,7 @@ from pathlib import Path
 
 args = sys.argv[1:]
 scenario = os.environ.get("FAKE_OC_SCENARIO", "ready")
+prepared_pvc = os.environ.get("FAKE_OC_PREPARED_PVC", "mistral-weights")
 preparation_state_path = os.environ.get("FAKE_OC_PREPARATION_STATE")
 preparation_state = (json.loads(Path(preparation_state_path).read_text())
                      if preparation_state_path and Path(preparation_state_path).exists() else {})
@@ -95,6 +96,9 @@ if scenario == "inventory" and args and args[0] == "logs":
     print(json.loads(os.environ["FAKE_OC_INVENTORY_LOGS"])[part - 1], end="")
     sys.exit(0)
 if scenario.startswith("serving_") and args and args[0] == "apply":
+    if os.environ.get("FAKE_OC_APPLIED_RESOURCES"):
+        with open(os.environ["FAKE_OC_APPLIED_RESOURCES"], "a") as applied:
+            applied.write(json.dumps(json.load(sys.stdin)) + "\n")
     sys.exit(0)
 if scenario.startswith("serving_") and args and args[0] == "exec":
     print("private-tensor-name-never-echo")
@@ -178,8 +182,8 @@ if scenario == "inventory":
                            "status": {"containerStatuses": [{"imageID": f"observed-image-{part}"}]}}]}
 if scenario == "preparation_success" or scenario.startswith("serving_"):
     images = json.loads(os.environ["FAKE_OC_WEIGHT_IMAGES"])
-    prepared_metadata = {"annotations": {"mistral-validation/pvc-uid": "uid-mistral-weights"}}
-    prepared_volumes = [{"name": "model", "persistentVolumeClaim": {"claimName": "mistral-weights"}}]
+    prepared_metadata = {"annotations": {"mistral-validation/pvc-uid": f"uid-{prepared_pvc}"}}
+    prepared_volumes = [{"name": "model", "persistentVolumeClaim": {"claimName": prepared_pvc}}]
     template = {"metadata": prepared_metadata,
                 "spec": {"volumes": prepared_volumes, "initContainers": [{"image": image} for image in images]}}
     if (resource == "job" and preparation_state_path and "job" not in preparation_state):
@@ -211,7 +215,7 @@ if scenario.startswith("serving_"):
                                        "spec": {"containers": [{"name": "kserve-container", "image": os.environ.get("FAKE_OC_RUNTIME_IMAGE", "pinned-runtime"),
                                                                "volumeMounts": [{"name": "kserve-pvc-source", "mountPath": "/mnt/models",
                                                                                  "readOnly": scenario != "serving_writable_mount"}]}],
-                                                "volumes": [{"name": "kserve-pvc-source", "persistentVolumeClaim": {"claimName": "mistral-weights"}}]},
+                                                "volumes": [{"name": "kserve-pvc-source", "persistentVolumeClaim": {"claimName": prepared_pvc}}]},
                                        "status": {"phase": "Running", "conditions": [
                                            {"type": "Ready", "status": "False" if first else "True"}],
                                            "containerStatuses": [{"name": "kserve-container", "state": {"running": {

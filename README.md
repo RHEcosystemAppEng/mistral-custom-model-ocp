@@ -18,8 +18,8 @@ and its existing pull secret.
 
 ## Python setup and development
 
-The validation CLI supports Python 3.10 and newer, including Python 3.14. It has
-no third-party Python runtime dependencies. Use standard `venv` and `pip`;
+The validation CLI supports Python 3.10 and newer, including Python 3.14. It uses
+PyYAML to load its serving templates. Use standard `venv` and `pip`;
 neither uv nor Helm is required.
 
 ```sh
@@ -33,13 +33,13 @@ python -m unittest discover -s tests -p test_preparation.py -v
 make test
 ```
 
-The `dev` extra installs mypy for typechecking; the tests use the standard-library
+The `dev` extra installs mypy and PyYAML type stubs for typechecking; the tests use the standard-library
 `unittest` runner. `make typecheck` runs the same mypy configuration. The test
 suite also uses `make`, `openssl` (for local HTTPS fixtures), and `du`, available
 on typical macOS/Linux development systems. Tests do not require a cluster,
 `oc`, GPU libraries, or model weights. The packaging tests create an isolated
 virtual environment and use pip to build and install a non-editable distribution;
-pip needs access to the configured package index for build dependencies.
+pip needs access to the configured package index for build and runtime dependencies.
 
 For a regular installation, run `python -m pip install .` instead of the editable
 install above. Once installed, `mistral-validate --help` and
@@ -51,14 +51,14 @@ Activate the environment before running Make, or pass
 are resolved relative to the directory where the command is invoked; use
 absolute paths when running from elsewhere.
 
-The preparation worker and runtime diagnostic are included in the installed
+The serving YAML templates, preparation worker and runtime diagnostic are included in the installed
 package and sent to their cluster containers when needed. GPU libraries belong
 to the pinned runtime image and are not local Python dependencies.
 
 Generated environments (`.venv/`), bytecode, typechecker caches, packaging output
 (`build/`, `dist/`, `*.egg-info/`), private inventories (`.local/`), and reports
-(`reports/`) are excluded from Git. No lockfile is required for this
-standard-library runtime.
+(`reports/`) are excluded from Git. Runtime and development dependencies are
+declared in `pyproject.toml`.
 
 This repository is building an operator workflow to validate the private
 `mistral-large-instruct-2411` model on Red Hat OpenShift AI (RHOAI) and KServe.
@@ -240,14 +240,39 @@ repeated scans. Run all local checks with
 
 ## Serve through KServe
 
+The authoritative definitions are
+[`serving-runtime.yaml`](src/mistral_validation/templates/serving-runtime.yaml) and
+[`inference-service.yaml`](src/mistral_validation/templates/inference-service.yaml).
+Their `{{name}}` placeholders receive validated configuration values; whole-value
+GPU counts and probe thresholds render as integers. Runtime arguments, the pinned
+runtime image, authentication, read-only storage, security constraints, tolerations,
+and probes live in these files. Edit the templates to change those definitions.
+This remains a model validation workflow; rendering and installation require no Helm.
+
+Preview works offline, even before preparation and without `oc` installed.
 After `make prepare` finishes and its report confirms the four pinned images,
-review the rendered objects and install the service:
+review the rendered objects and install the service with the same inputs:
 
 ```sh
-make -s render-deployment NAMESPACE=mistral-custom-model-ocp GPU_COUNT=8 > /tmp/mistral-serving.json
+make -s render-deployment NAMESPACE=mistral-custom-model-ocp GPU_COUNT=8 SERVING_TIMEOUT=3600s > /tmp/mistral-serving.json
 make install NAMESPACE=mistral-custom-model-ocp GPU_COUNT=8 SERVING_TIMEOUT=3600s
 make status NAMESPACE=mistral-custom-model-ocp
 ```
+
+The installed CLI uses the same configuration and renderer, from any directory:
+
+```sh
+mistral-validate render-deployment --namespace model-validation --pull-secret ibm-entitlement --pvc-name mistral-weights --gpu-count 8 --serving-timeout 3600s > /tmp/mistral-serving.json
+mistral-validate install --namespace model-validation --pull-secret ibm-entitlement --pvc-name mistral-weights --gpu-count 8 --serving-timeout 3600s
+```
+
+The preview is a JSON Kubernetes `List` containing both resources, also valid YAML.
+Install renders those same effective objects and submits them individually after
+verifying preparation; it does not read the saved preview file. Keep the
+configuration and installed templates the same between preview and install.
+Use `PULL_SECRET` and `PVC_NAME` with Make (or `--pull-secret` and `--pvc-name`
+with the CLI) to select existing resources in the effective namespace. Invalid
+configuration fails before any cluster command runs.
 
 `SERVING_TIMEOUT` is a positive number of seconds. It controls the `/health`
 startup probe allowance and the operator's wait for the predictor pod and

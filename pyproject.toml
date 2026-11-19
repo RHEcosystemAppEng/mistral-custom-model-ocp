@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Validate the Mistral 2411 model on OpenShift AI"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = ["PyYAML>=6.0.2"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -19,13 +19,16 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-dev = ["mypy>=1.15"]
+dev = ["mypy>=1.15", "types-PyYAML>=6.0.12"]
 
 [project.scripts]
 mistral-validate = "mistral_validation.operator:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+mistral_validation = ["templates/*.yaml"]
 
 [tool.mypy]
 files = ["src/mistral_validation"]

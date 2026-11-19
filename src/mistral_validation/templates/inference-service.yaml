@@ -1,0 +1,31 @@
+# Values in {{braces}} come from the validated operator configuration.
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: mistral-large-instruct-2411
+  namespace: '{{namespace}}'
+  annotations:
+    storage.kserve.io/readonly: 'true'
+    security.opendatahub.io/enable-auth: 'true'
+  labels:
+    networking.kserve.io/visibility: exposed
+spec:
+  predictor:
+    minReplicas: 1
+    maxReplicas: 1
+    tolerations:
+      - key: p4-gpu
+        operator: Exists
+        effect: NoSchedule
+    imagePullSecrets:
+      - name: '{{pull_secret}}'
+    model:
+      modelFormat:
+        name: vLLM
+      runtime: mistral-runtime
+      storageUri: 'pvc://{{pvc_name}}/'
+      resources:
+        requests:
+          nvidia.com/gpu: '{{gpu_count}}'
+        limits:
+          nvidia.com/gpu: '{{gpu_count}}'

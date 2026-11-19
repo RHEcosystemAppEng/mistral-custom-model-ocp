@@ -27,7 +27,7 @@ class InstalledCliTests(unittest.TestCase):
         cls.env.pop("PYTHONPATH", None)
         cls.env.pop("PYTHONHOME", None)
         result = subprocess.run(
-            [str(cls.python), "-m", "pip", "install", "--no-deps", str(ROOT)],
+            [str(cls.python), "-m", "pip", "install", str(ROOT)],
             cwd=cls.outside, env=cls.env, capture_output=True, text=True)
         if result.returncode:
             raise RuntimeError(result.stdout + result.stderr)
@@ -46,6 +46,25 @@ class InstalledCliTests(unittest.TestCase):
         self.assertTrue(resources)
         self.assertTrue(all(item["metadata"]["namespace"] == "installed-cli"
                             for item in resources))
+
+    def test_installed_yaml_is_authoritative_for_runtime_preview(self):
+        result = subprocess.run(
+            [str(self.python), "-c",
+             "from importlib.resources import files; "
+             "print(files('mistral_validation').joinpath('templates/serving-runtime.yaml'))"],
+            cwd=self.outside, env=self.env, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        template = Path(result.stdout.strip())
+        original = template.read_text()
+        try:
+            template.write_text(original.replace("--max-num-seqs=20", "--max-num-seqs=12"))
+            result = self.invoke("render-deployment")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            container = json.loads(result.stdout)["items"][0]["spec"]["containers"][0]
+            self.assertIn("--max-num-seqs=12", container["args"])
+            self.assertNotIn("--max-num-seqs=20", container["args"])
+        finally:
+            template.write_text(original)
 
     def test_preparation_includes_a_worker_that_verifies_and_publishes(self):
         from test_preparation import IMAGES
