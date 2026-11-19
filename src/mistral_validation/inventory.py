@@ -88,12 +88,13 @@ def difference(old, new):
 def collect(oc, cfg, images, timeout, output):
     if not re.fullmatch(r"[1-9][0-9]*s", timeout):
         raise ValueError("PREPARE_TIMEOUT must be a positive number of seconds")
+    resources = render_discovery(cfg, images)
     namespace = cfg["namespace"]
     names = [f"mistral-2411-discover-{part}" for part in range(1, 5)]
     try:
         for name in names:
             oc.run("delete", "job", name, "-n", namespace, "--ignore-not-found=true", "--wait=true")
-        oc.apply(render_discovery(cfg, images))
+        oc.apply(resources)
         deadline = time.monotonic() + int(timeout[:-1])
         logs = []
         for part, name in enumerate(names, 1):

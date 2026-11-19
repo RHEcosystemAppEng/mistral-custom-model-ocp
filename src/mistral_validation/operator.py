@@ -463,8 +463,8 @@ def prepare(oc, cfg, resources, timeout, layout, report_dir):
                 return 1
             # The Job's immutable pod template binds verification to this claim
             # before any preparation container starts; the claim name is in volumes.
-            resources["items"][2]["spec"]["template"]["metadata"] = {
-                "annotations": {PVC_UID_ANNOTATION: identity["uid"]}}
+            metadata = resources["items"][2]["spec"]["template"].setdefault("metadata", {})
+            metadata.setdefault("annotations", {})[PVC_UID_ANNOTATION] = identity["uid"]
             oc.apply(resources["items"][1])
             oc.apply(resources["items"][2])
             deadline = time.monotonic() + int(timeout[:-1])

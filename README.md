@@ -19,7 +19,7 @@ and its existing pull secret.
 ## Python setup and development
 
 The validation CLI supports Python 3.10 and newer, including Python 3.14. It uses
-PyYAML to load its serving templates. Use standard `venv` and `pip`;
+PyYAML to load its resource templates. Use standard `venv` and `pip`;
 neither uv nor Helm is required.
 
 ```sh
@@ -51,7 +51,7 @@ Activate the environment before running Make, or pass
 are resolved relative to the directory where the command is invoked; use
 absolute paths when running from elsewhere.
 
-The serving YAML templates, preparation worker and runtime diagnostic are included in the installed
+The discovery, preparation and serving YAML templates, preparation worker and runtime diagnostic are included in the installed
 package and sent to their cluster containers when needed. GPU libraries belong
 to the pinned runtime image and are not local Python dependencies.
 
@@ -183,17 +183,49 @@ concatenate `part_*` files or make `consolidated.safetensors`.
 ```
 
 The example shows the JSON shape; it is not an artifact inventory. Do not
-commit private model content or credentials. Review the rendered PVC,
-ConfigMap, and Job before applying:
+commit private model content or credentials.
+
+The authoritative resource definitions are checked in under
+[`src/mistral_validation/templates/`](src/mistral_validation/templates/):
+`discovery-job.yaml`, `preparation-pvc.yaml`, `preparation-configmap.yaml`,
+`preparation-job.yaml`, and the repeated copy stage in
+`preparation-init-container.yaml`. Python supplies validated configuration,
+inventory-derived copy commands and layout JSON, and the packaged verification
+worker. The four source image references remain digest-pinned in the operator
+configuration. These templates require neither Helm nor cluster access to render.
+
+Preview the four discovery Jobs before inventory, then review the preparation
+PVC, ConfigMap, and Job after generating the private layout:
 
 ```sh
-make -s render-preparation > /tmp/2411-preparation.json
+make -s render-discovery NAMESPACE=mistral-custom-model-ocp
+umask 077
+mkdir -p .local
+make -s render-preparation PVC_SIZE=140Gi > .local/2411-preparation.json
 make prepare PVC_SIZE=140Gi
 ```
 
 `LAYOUT=/secure/path/2411-layout.json` overrides the default for either
-command. If the layout is absent, `make prepare` fails before changing cluster
-resources and tells you to run `make inventory`.
+preparation command. Both previews accept `NAMESPACE` and `PULL_SECRET`;
+preparation also accepts `PVC_NAME`, `PVC_SIZE`, and `STORAGE_CLASS`. An omitted
+storage class requests the cluster default. Keep the same settings and templates
+between preview and execution. Inventory and preparation use these same renderers;
+preparation adds the live PVC UID annotation before starting the Job. It creates
+the rendered PVC only when absent and preserves the existing claim on retries.
+If the layout is absent, `make prepare` fails before changing cluster resources
+and tells you to run `make inventory`.
+
+**Rendered preparation output is private:** its ConfigMap contains the complete
+inventory, including paths, sizes, and hashes, and its copy commands contain file
+paths. Keep it in a protected local file, out of shared logs, issues, and Git;
+do not commit private inventories or credentials to templates or test fixtures.
+The pull-secret field is only a reference to an existing secret.
+Installed commands work offline outside the checkout as well:
+
+```sh
+mistral-validate render-discovery --namespace mistral-custom-model-ocp
+mistral-validate render-preparation --layout /secure/path/2411-layout.json > /secure/path/2411-preparation.json
+```
 
 `make prepare` creates the PVC if absent, uses the existing namespace pull
 secret, and checks for verified preparation on that PVC's current name and UID.

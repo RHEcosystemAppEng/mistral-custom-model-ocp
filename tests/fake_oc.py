@@ -19,6 +19,13 @@ if args and args[0] in ("apply", "create", "delete", "patch", "replace", "annota
         with open(os.environ["FAKE_OC_MUTATIONS"], "a") as mutations:
             mutations.write(json.dumps(args) + "\n")
 
+applied_item = None
+if args and args[0] == "apply":
+    applied_item = json.load(sys.stdin)
+    if os.environ.get("FAKE_OC_APPLIED_RESOURCES"):
+        with open(os.environ["FAKE_OC_APPLIED_RESOURCES"], "a") as applied:
+            applied.write(json.dumps(applied_item) + "\n")
+
 if scenario.startswith("cleanup"):
     state_path = Path(os.environ["FAKE_OC_STATE"])
     state = json.loads(state_path.read_text())
@@ -73,7 +80,7 @@ if scenario == "preparation_success" and args and args[0] in ("apply", "delete")
         print("previous preparation pod still copying", file=sys.stderr)
         sys.exit(1)
     if preparation_state_path and args[0] == "apply":
-        item = json.load(sys.stdin)
+        item = applied_item
         if item["kind"] == "Job":
             if "job" in preparation_state:
                 # The worker refuses to overwrite an already published model.
@@ -96,9 +103,6 @@ if scenario == "inventory" and args and args[0] == "logs":
     print(json.loads(os.environ["FAKE_OC_INVENTORY_LOGS"])[part - 1], end="")
     sys.exit(0)
 if scenario.startswith("serving_") and args and args[0] == "apply":
-    if os.environ.get("FAKE_OC_APPLIED_RESOURCES"):
-        with open(os.environ["FAKE_OC_APPLIED_RESOURCES"], "a") as applied:
-            applied.write(json.dumps(json.load(sys.stdin)) + "\n")
     sys.exit(0)
 if scenario.startswith("serving_") and args and args[0] == "exec":
     print("private-tensor-name-never-echo")

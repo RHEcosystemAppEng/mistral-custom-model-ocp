@@ -1,0 +1,9 @@
+# Values in {{braces}} are supplied by the operator renderer.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mistral-2411-preparation
+  namespace: '{{namespace}}'
+data:
+  prepare_worker.py: '{{worker}}'
+  layout.json: '{{layout}}'

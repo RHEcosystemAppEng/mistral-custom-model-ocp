@@ -96,6 +96,63 @@ class InstalledCliTests(unittest.TestCase):
         self.assertEqual((root / "mistral-large-instruct-2411" / "model.safetensors").read_bytes(),
                          content)
 
+    def test_installed_yaml_controls_discovery_and_preparation_previews(self):
+        from test_preparation import IMAGES
+
+        layout = self.outside / "synthetic-layout.json"
+        layout.write_text(json.dumps({
+            "model": "mistral-large-instruct-2411", "source_images": IMAGES,
+            "assembly": "overlay", "files": [{
+                "image": 1, "source": "/synthetic/file", "target": "file",
+                "size": 1, "sha256": "a" * 64}]}))
+        result = subprocess.run(
+            [str(self.python), "-c", "from importlib.resources import files; "
+             "print(files('mistral_validation').joinpath('templates'))"],
+            cwd=self.outside, env=self.env, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        templates = Path(result.stdout.strip())
+        for name, command, kind in (
+                ("discovery-job", "render-discovery", "Job"),
+                ("preparation-pvc", "render-preparation", "PersistentVolumeClaim"),
+                ("preparation-configmap", "render-preparation", "ConfigMap"),
+                ("preparation-job", "render-preparation", "Job"),
+                ("preparation-init-container", "render-preparation", None)):
+            with self.subTest(template=name):
+                template = templates / f"{name}.yaml"
+                original = template.read_text()
+                try:
+                    template.write_text(original + "\nx-template-evidence: from-installed-yaml\n")
+                    result = self.invoke(command, "--layout", str(layout), "--oc", "/missing/oc")
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    resources = json.loads(result.stdout)["items"]
+                    objects = ([item for item in resources if item["kind"] == kind] if kind else
+                               next(item for item in resources if item["kind"] == "Job")["spec"]["template"]["spec"]["initContainers"])
+                    self.assertTrue(objects)
+                    self.assertTrue(all(item["x-template-evidence"] == "from-installed-yaml" for item in objects))
+                    if name == "preparation-job":
+                        template.write_text(original.replace(
+                            "  template:\n", "  template:\n    metadata:\n      labels:\n"
+                            "        custom-label: retained\n      annotations:\n"
+                            "        custom-annotation: retained\n"))
+                        state = self.outside / "preparation-state.json"
+                        result = subprocess.run(
+                            [str(self.cli), "prepare", "--layout", str(layout),
+                             "--oc", str(ROOT / "tests" / "fake_oc.py"),
+                             "--report-dir", str(self.outside / "reports")],
+                            cwd=self.outside, env={**self.env,
+                                "FAKE_OC_SCENARIO": "preparation_success",
+                                "FAKE_OC_WEIGHT_IMAGES": json.dumps(IMAGES),
+                                "FAKE_OC_PREPARATION_STATE": str(state),
+                                "FAKE_OC_VERIFICATION_LOG": "PREPARATION_COMPLETE verified_files=1 peak_pvc_used_kib=1024"},
+                            capture_output=True, text=True)
+                        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                        metadata = json.loads(state.read_text())["job"]["spec"]["template"]["metadata"]
+                        self.assertEqual(metadata, {"labels": {"custom-label": "retained"},
+                            "annotations": {"custom-annotation": "retained",
+                                            "mistral-validation/pvc-uid": "uid-mistral-weights"}})
+                finally:
+                    template.write_text(original)
+
     def test_runtime_diagnostic_resource_is_usable_without_the_package(self):
         # The cluster receives this module as a standalone stdin program.
         result = subprocess.run(

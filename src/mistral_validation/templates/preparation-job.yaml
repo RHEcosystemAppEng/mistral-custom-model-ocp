@@ -1,0 +1,33 @@
+# Values in {{braces}} are supplied by the operator renderer.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mistral-2411-prepare
+  namespace: '{{namespace}}'
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      imagePullSecrets:
+      - name: '{{pull_secret}}'
+      volumes:
+      - name: model
+        persistentVolumeClaim:
+          claimName: '{{pvc_name}}'
+      - name: instructions
+        configMap:
+          name: mistral-2411-preparation
+      initContainers: '{{init_containers}}'
+      containers:
+      - name: verify
+        image: registry.access.redhat.com/ubi9/python-312:latest
+        command:
+        - python3
+        - /instructions/prepare_worker.py
+        volumeMounts:
+        - name: model
+          mountPath: /pvc
+        - name: instructions
+          mountPath: /instructions
+          readOnly: true

@@ -1,0 +1,13 @@
+# Values in {{braces}} are supplied by the operator renderer.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: '{{pvc_name}}'
+  namespace: '{{namespace}}'
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: '{{pvc_size}}'
+  storageClassName: '{{storage_class}}'

@@ -1,16 +1,18 @@
 """Render the digest-pinned, inventory-gated model preparation resources."""
 
+from importlib.resources import files
 import json
 from pathlib import Path, PurePosixPath
 import re
 import shlex
+
+from .resource_templates import read_template, substitute
 
 
 MODEL = "mistral-large-instruct-2411"
 JOB_NAME = "mistral-2411-prepare"
 CONFIG_NAME = "mistral-2411-preparation"
 PVC_UID_ANNOTATION = "mistral-validation/pvc-uid"
-HELPER_IMAGE = "registry.access.redhat.com/ubi9/python-312:latest"
 SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 
 
@@ -84,53 +86,30 @@ def copy_script(entries, first):
 
 
 def render_discovery(cfg, weight_images):
-    root = f"/models/{MODEL}"
-    script = ("set -eu\n"
-              f"test -d {root} || {{ echo INVENTORY_ROOT_MISSING; exit 1; }}\n"
-              f"find {root} -type f -exec sh -ec 'for file do "
-              "bytes=$(wc -c < \"$file\"); digest=$(sha256sum \"$file\" | cut -d \" \" -f 1); "
-              "printf \"FILE\\t%s\\t%s\\t%s\\n\" \"$file\" \"$bytes\" \"$digest\"; "
-              "done' sh {} +\n"
-              f"if [ -f {root}/model.safetensors.index.json ]; then\n"
-              f"  printf 'INDEX\\t'; base64 < {root}/model.safetensors.index.json | tr -d '\\n'; printf '\\n'\n"
-              "fi\n")
-    jobs = []
-    for part, image in enumerate(weight_images, 1):
-        jobs.append({"apiVersion": "batch/v1", "kind": "Job",
-                     "metadata": {"name": f"mistral-2411-discover-{part}", "namespace": cfg["namespace"]},
-                     "spec": {"backoffLimit": 0, "template": {"spec": {
-                         "restartPolicy": "Never", "imagePullSecrets": [{"name": cfg["pull_secret"]}],
-                         "containers": [{"name": "inventory", "image": image, "imagePullPolicy": "Always",
-                                         "command": ["/bin/sh", "-ec", script]}]}}}})
+    template = read_template("discovery-job")
+    bindings = {"namespace": cfg["namespace"], "pull_secret": cfg["pull_secret"]}
+    jobs = [substitute(template, {**bindings, "part": part, "image": image})
+            for part, image in enumerate(weight_images, 1)]
     return {"apiVersion": "v1", "kind": "List", "items": jobs}
 
 
 def render(cfg, layout, weight_images):
-    pvc_spec = {"accessModes": ["ReadWriteOnce"], "resources": {"requests": {"storage": cfg["pvc"]["size"]}}}
-    if cfg["pvc"]["storage_class"]:
-        pvc_spec["storageClassName"] = cfg["pvc"]["storage_class"]
-    pvc = {"apiVersion": "v1", "kind": "PersistentVolumeClaim",
-           "metadata": {"name": cfg["pvc"]["name"], "namespace": cfg["namespace"]}, "spec": pvc_spec}
-    worker = Path(__file__).with_name("prepare_worker.py").read_text()
-    configmap = {"apiVersion": "v1", "kind": "ConfigMap",
-                 "metadata": {"name": CONFIG_NAME, "namespace": cfg["namespace"]},
-                 "data": {"prepare_worker.py": worker, "layout.json": json.dumps(layout, separators=(",", ":"))}}
-    volume_mount = {"name": "model", "mountPath": "/pvc"}
+    bindings = {"namespace": cfg["namespace"], "pull_secret": cfg["pull_secret"],
+                "pvc_name": cfg["pvc"]["name"], "pvc_size": cfg["pvc"]["size"],
+                "storage_class": cfg["pvc"]["storage_class"],
+                "worker": files("mistral_validation").joinpath("prepare_worker.py").read_text(),
+                "layout": json.dumps(layout, separators=(",", ":"))}
+    pvc = substitute(read_template("preparation-pvc"), bindings)
+    if not cfg["pvc"]["storage_class"]:
+        # Omission requests the cluster default; an empty string disables it.
+        pvc["spec"].pop("storageClassName", None)
+    init_template = read_template("preparation-init-container")
     init = []
     for part, image in enumerate(weight_images, 1):
         entries = [entry for entry in layout["files"] if entry["image"] == part]
-        init.append({"name": f"part-{part}", "image": image, "imagePullPolicy": "Always",
-                     "command": ["/bin/sh", "-ec", copy_script(entries, part == 1)],
-                     "volumeMounts": [volume_mount]})
-    job = {"apiVersion": "batch/v1", "kind": "Job",
-           "metadata": {"name": JOB_NAME, "namespace": cfg["namespace"]},
-           "spec": {"backoffLimit": 0, "template": {"spec": {
-               "restartPolicy": "Never", "imagePullSecrets": [{"name": cfg["pull_secret"]}],
-               "volumes": [{"name": "model", "persistentVolumeClaim": {"claimName": cfg["pvc"]["name"]}},
-                           {"name": "instructions", "configMap": {"name": CONFIG_NAME}}],
-               "initContainers": init,
-               "containers": [{"name": "verify", "image": HELPER_IMAGE,
-                               "command": ["python3", "/instructions/prepare_worker.py"],
-                               "volumeMounts": [volume_mount, {"name": "instructions", "mountPath": "/instructions", "readOnly": True}]}],
-           }}}}
+        init.append(substitute(init_template, {"part": part, "image": image,
+                                              "copy_script": copy_script(entries, part == 1)}))
+    bindings["init_containers"] = init
+    configmap = substitute(read_template("preparation-configmap"), bindings)
+    job = substitute(read_template("preparation-job"), bindings)
     return {"apiVersion": "v1", "kind": "List", "items": [pvc, configmap, job]}

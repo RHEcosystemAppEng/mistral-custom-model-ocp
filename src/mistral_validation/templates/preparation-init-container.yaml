@@ -1,0 +1,11 @@
+# Values in {{braces}} are supplied by the operator renderer.
+name: part-{{part}}
+image: '{{image}}'
+imagePullPolicy: Always
+command:
+- /bin/sh
+- -ec
+- '{{copy_script}}'
+volumeMounts:
+- name: model
+  mountPath: /pvc
