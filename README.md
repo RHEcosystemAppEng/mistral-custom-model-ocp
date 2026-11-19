@@ -151,7 +151,13 @@ command. If the layout is absent, `make prepare` fails before changing cluster
 resources and tells you to run `make inventory`.
 
 `make prepare` creates the PVC if absent, uses the existing namespace pull
-secret, deletes an earlier preparation Job, and starts a new one. The first
+secret, and checks for verified preparation on that PVC's current name and UID.
+After a local interruption or report-write failure, rerunning `make prepare`
+reuses the completed Job and model without recopying and saves a local preparation
+report under `reports/` (or `REPORT_DIR`). The same PVC can then be used by
+`make install`. Reuse requires the completed Job, verification log, and all four
+pinned source images with observed image IDs; directory or marker presence alone
+is insufficient. Otherwise it deletes the earlier preparation Job and starts a new one. The first
 init container removes any incomplete staging directory before copying. A
 failed or interrupted attempt can be retried with the same command. The final
 directory appears only after every listed file has the expected size and hash;

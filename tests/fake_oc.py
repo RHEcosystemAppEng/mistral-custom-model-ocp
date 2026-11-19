@@ -74,9 +74,15 @@ if scenario == "preparation_success" and args and args[0] in ("apply", "delete")
     if preparation_state_path and args[0] == "apply":
         item = json.load(sys.stdin)
         if item["kind"] == "Job":
+            if "job" in preparation_state:
+                # The worker refuses to overwrite an already published model.
+                item["status"] = {"conditions": [{"type": "Failed", "status": "True"}]}
+                preparation_state["model_already_complete"] = True
             preparation_state["job"] = item
             if os.environ.get("FAKE_OC_RECREATE_PVC_AFTER_PREPARATION"):
                 preparation_state["pvc"] = {"metadata": {"name": "mistral-weights", "uid": "replacement-uid"}}
+        elif item["kind"] == "ConfigMap":
+            preparation_state["configmap"] = item
         elif item["kind"] == "PersistentVolumeClaim":
             item["metadata"]["uid"] = "uid-" + item["metadata"]["name"]
             preparation_state["pvc"] = item
@@ -134,6 +140,13 @@ if scenario.startswith("serving_") and args and args[0] == "port-forward":
 if (scenario == "preparation_success" or scenario.startswith("serving_")) and args and args[0] == "logs":
     if os.environ.get("FAKE_OC_LOGS_UNAVAILABLE"):
         sys.exit(1)
+    if preparation_state.get("model_already_complete"):
+        print("MODEL_ALREADY_COMPLETE")
+        sys.exit(0)
+    if os.environ.get("FAKE_OC_BLOCK_REPORT_WRITE"):
+        report_root = Path(os.environ["REPORT_DIR"])
+        report_root.rmdir()
+        report_root.write_text("local report destination became unavailable")
     print(os.environ.get("FAKE_OC_VERIFICATION_LOG", "PREPARATION_COMPLETE verified_files=4 peak_pvc_used_kib=1024"))
     sys.exit(0)
 if not args or args[0] != "get":
@@ -169,8 +182,16 @@ if scenario == "preparation_success" or scenario.startswith("serving_"):
     prepared_volumes = [{"name": "model", "persistentVolumeClaim": {"claimName": "mistral-weights"}}]
     template = {"metadata": prepared_metadata,
                 "spec": {"volumes": prepared_volumes, "initContainers": [{"image": image} for image in images]}}
+    if (resource == "job" and preparation_state_path and "job" not in preparation_state):
+        print("Error from server (NotFound)", file=sys.stderr)
+        sys.exit(1)
+    if resource == "job" and os.environ.get("FAKE_OC_OBSERVER_INTERRUPTED"):
+        print("local observer disconnected", file=sys.stderr)
+        sys.exit(1)
     objects["job"] = preparation_state.get("job", {"spec": {"template": template}})
     objects["job"].setdefault("status", {"conditions": [{"type": "Complete", "status": "True"}]})
+    if "configmap" in preparation_state:
+        objects["configmap"] = preparation_state["configmap"]
     if "pvc" in preparation_state:
         objects["pvc"] = preparation_state["pvc"]
     if resource == "pods" and any(value.startswith("batch.kubernetes.io/job-name=") for value in args):

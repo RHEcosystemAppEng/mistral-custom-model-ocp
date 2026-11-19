@@ -62,6 +62,72 @@ class PreparationIdentityWorkflowTests(unittest.TestCase):
         report = json.loads(next((self.root / "reports").glob("serving-*.json")).read_text())
         self.assertTrue(report["inference_valid"])
 
+    def test_retry_after_observer_disconnect_preserves_job_and_allows_install(self):
+        interrupted = self.run_make("prepare", FAKE_OC_OBSERVER_INTERRUPTED="1")
+        self.assertNotEqual(interrupted.returncode, 0)
+        self.assertFalse(list((self.root / "reports").glob("preparation-*.json")))
+        original = self.state.read_text()
+        self.mutations.unlink()
+        retried = self.run_make("prepare")
+        self.assertEqual(retried.returncode, 0, retried.stdout + retried.stderr)
+        self.assertFalse(self.mutations.exists())
+        self.assertEqual(self.state.read_text(), original)
+        evidence = json.loads(next((self.root / "reports").glob("preparation-*.json")).read_text())
+        self.assertEqual(evidence["pvc"]["uid"], "uid-mistral-weights")
+        self.assertEqual(evidence["verified_files"], 4)
+        installed = self.run_make("install")
+        self.assertEqual(installed.returncode, 0, installed.stdout + installed.stderr)
+
+    def test_retry_recovers_after_local_report_write_failure(self):
+        failed = self.run_make("prepare", FAKE_OC_BLOCK_REPORT_WRITE="1")
+        self.assertNotEqual(failed.returncode, 0)
+        self.assertIn("local report could not be saved", failed.stdout)
+        original = self.state.read_text()
+        (self.root / "reports").unlink()
+        self.mutations.unlink()
+        retried = self.run_make("prepare")
+        self.assertEqual(retried.returncode, 0, retried.stdout + retried.stderr)
+        self.assertFalse(self.mutations.exists())
+        self.assertEqual(self.state.read_text(), original)
+        evidence = json.loads(next((self.root / "reports").glob("preparation-*.json")).read_text())
+        self.assertEqual(evidence["job"], "mistral-2411-prepare")
+        self.assertEqual(evidence["verified_files"], 4)
+        self.assertEqual(evidence["source_images"][0], {
+            "reference": IMAGES[0], "observed_image_id": "observed-image-1"})
+
+    def test_retry_does_not_reuse_mismatched_or_unverified_evidence(self):
+        original = self.prepare_claim()
+        for failure in ("wrong UID", "incomplete Job", "wrong image", "missing image ID", "unverified log", "wrong count", "changed inventory"):
+            with self.subTest(failure=failure):
+                state = deepcopy(original)
+                settings = {}
+                if failure == "wrong UID":
+                    state["pvc"] = {"metadata": {"name": "mistral-weights", "uid": "replacement-uid"},
+                                    "spec": {"accessModes": ["ReadWriteOnce"],
+                                             "resources": {"requests": {"storage": "140Gi"}}}}
+                elif failure == "incomplete Job":
+                    state["job"]["status"] = {"conditions": [{"type": "Complete", "status": "False"}]}
+                elif failure == "wrong image":
+                    state["job"]["spec"]["template"]["spec"]["initContainers"][0]["image"] = "wrong-image"
+                elif failure == "missing image ID":
+                    state["pod"] = deepcopy(state["job"]["spec"]["template"])
+                    state["pod"]["status"] = {"initContainerStatuses": []}
+                elif failure == "wrong count":
+                    settings["FAKE_OC_VERIFICATION_LOG"] = "PREPARATION_COMPLETE verified_files=1 peak_pvc_used_kib=1024"
+                elif failure == "changed inventory":
+                    prior_layout = json.loads(state["configmap"]["data"]["layout.json"])
+                    prior_layout["files"][0]["sha256"] = "b" * 64
+                    state["configmap"]["data"]["layout.json"] = json.dumps(prior_layout)
+                else:
+                    settings["FAKE_OC_VERIFICATION_LOG"] = "verification did not complete"
+                self.state.write_text(json.dumps(state))
+                self.mutations.unlink(missing_ok=True)
+                retried = self.run_make("prepare", **settings)
+                self.assertNotEqual(retried.returncode, 0, retried.stdout + retried.stderr)
+                self.assertNotIn("reusing verified preparation", retried.stdout)
+                self.assertIn("MODEL_ALREADY_COMPLETE", retried.stdout)
+                self.assertTrue(self.mutations.exists())
+
     def test_install_rejects_a_recreated_claim_without_changing_serving_resources(self):
         state = self.prepare_claim()
         state["pvc"] = {"metadata": {"name": "mistral-weights", "uid": "replacement-uid"}}

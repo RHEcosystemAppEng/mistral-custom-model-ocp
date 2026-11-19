@@ -517,37 +517,44 @@ def prepare(oc, cfg, resources, timeout, layout, report_dir):
         return 1
     namespace = cfg["namespace"]
     try:
-        oc.run("delete", "job", JOB_NAME, "-n", namespace, "--ignore-not-found=true", "--cascade=foreground", "--wait=true")
-        try:
-            oc.get("pvc", cfg["pvc"]["name"], "-n", namespace)
-        except OcError as error:
-            if not error.not_found:
-                raise
-            oc.apply(resources["items"][0])
-        try:
+        if verified_preparation(oc, cfg, layout):
+            # Recover cluster completion after a local observer or report failure.
+            # Keep the Job: its immutable template and logs are install evidence.
             identity = claim_identity(oc, cfg)
-        except OcError:
-            print(f"FAIL preparation: PVC {cfg['pvc']['name']}'s name and UID are unavailable; "
-                  "check PVC access and provisioning, then rerun make prepare with the same PVC_NAME")
-            return 1
-        # The Job's immutable pod template binds verification to this claim
-        # before any preparation container starts; the claim name is in volumes.
-        resources["items"][2]["spec"]["template"]["metadata"] = {
-            "annotations": {PVC_UID_ANNOTATION: identity["uid"]}}
-        oc.apply(resources["items"][1])
-        oc.apply(resources["items"][2])
-        deadline = time.monotonic() + int(timeout[:-1])
-        while True:
             job = oc.get("job", JOB_NAME, "-n", namespace)
-            conditions = job.get("status", {}).get("conditions", [])
-            if any(item.get("type") == "Complete" and item.get("status") == "True" for item in conditions):
-                break
-            if any(item.get("type") == "Failed" and item.get("status") == "True" for item in conditions):
-                raise OcError()
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise OcError()
-            time.sleep(min(5, remaining))
+            print("PASS preparation: reusing verified preparation on the same PVC")
+        else:
+            oc.run("delete", "job", JOB_NAME, "-n", namespace, "--ignore-not-found=true", "--cascade=foreground", "--wait=true")
+            try:
+                oc.get("pvc", cfg["pvc"]["name"], "-n", namespace)
+            except OcError as error:
+                if not error.not_found:
+                    raise
+                oc.apply(resources["items"][0])
+            try:
+                identity = claim_identity(oc, cfg)
+            except OcError:
+                print(f"FAIL preparation: PVC {cfg['pvc']['name']}'s name and UID are unavailable; "
+                      "check PVC access and provisioning, then rerun make prepare with the same PVC_NAME")
+                return 1
+            # The Job's immutable pod template binds verification to this claim
+            # before any preparation container starts; the claim name is in volumes.
+            resources["items"][2]["spec"]["template"]["metadata"] = {
+                "annotations": {PVC_UID_ANNOTATION: identity["uid"]}}
+            oc.apply(resources["items"][1])
+            oc.apply(resources["items"][2])
+            deadline = time.monotonic() + int(timeout[:-1])
+            while True:
+                job = oc.get("job", JOB_NAME, "-n", namespace)
+                conditions = job.get("status", {}).get("conditions", [])
+                if any(item.get("type") == "Complete" and item.get("status") == "True" for item in conditions):
+                    break
+                if any(item.get("type") == "Failed" and item.get("status") == "True" for item in conditions):
+                    raise OcError()
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise OcError()
+                time.sleep(min(5, remaining))
     except OcError:
         print("FAIL preparation: Job did not complete. Inspect pod status and events with "
               f"oc describe job/{JOB_NAME} -n {namespace}; fix image access, LAYOUT, or PVC capacity, then rerun make prepare")
@@ -634,7 +641,7 @@ def preparation_claim_matches(job, pod, identity):
     return True
 
 
-def verified_preparation(oc, cfg):
+def verified_preparation(oc, cfg, layout=None):
     namespace = cfg["namespace"]
     try:
         job = oc.get("job", JOB_NAME, "-n", namespace)
@@ -643,8 +650,24 @@ def verified_preparation(oc, cfg):
         if not complete:
             return False
         log = oc.run("logs", f"job/{JOB_NAME}", "-n", namespace, "-c", "verify")
-        if not re.search(r"PREPARATION_COMPLETE verified_files=[1-9][0-9]* peak_pvc_used_kib=[1-9][0-9]*", log):
+        completion = re.search(r"PREPARATION_COMPLETE verified_files=([1-9][0-9]*) peak_pvc_used_kib=[1-9][0-9]*", log)
+        if not completion:
             return False
+        if layout is not None:
+            if int(completion.group(1)) != len(layout["files"]):
+                return False
+            volumes = job.get("spec", {}).get("template", {}).get("spec", {}).get("volumes", [])
+            instructions = next((volume.get("configMap", {}).get("name") for volume in volumes
+                                 if volume.get("name") == "instructions"), None)
+            if not instructions:
+                return False
+            config = oc.get("configmap", instructions, "-n", namespace)
+            try:
+                prepared_layout = json.loads(config.get("data", {}).get("layout.json", ""))
+            except (ValueError, TypeError):
+                return False
+            if prepared_layout != layout:
+                return False
         pods = oc.get("pods", "-n", namespace, "-l", f"batch.kubernetes.io/job-name={JOB_NAME}").get("items", [])
         if len(pods) != 1:
             return False
