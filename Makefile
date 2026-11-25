@@ -1,4 +1,4 @@
-PYTHON ?= python3
+PYTHON ?= $(firstword $(wildcard .venv/bin/python) python3)
 OC ?= oc
 NAMESPACE ?= mistral-custom-model-ocp
 PULL_SECRET ?= ibm-entitlement

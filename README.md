@@ -42,9 +42,10 @@ python -m pip install .
 mistral-validate --help
 ```
 
-No Helm or local GPU libraries are required. The commands below use Make from
-the repository root with the virtual environment active. The installed
-`mistral-validate` CLI also works outside the checkout;
+No Helm or local GPU libraries are required. Run the Make commands from the
+repository root. Make uses `.venv/bin/python` when present and otherwise uses
+`python3` from `PATH`. The installed `mistral-validate` CLI also works outside
+the checkout;
 `python -m mistral_validation` is the equivalent module entry point.
 
 ## Configure the deployment
