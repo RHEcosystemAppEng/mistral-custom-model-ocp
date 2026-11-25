@@ -16,8 +16,9 @@ class NoRedirect(HTTPRedirectHandler):
 
 
 OPENER = build_opener(ProxyHandler({}), NoRedirect())
+PROMPT = "Reply briefly to confirm availability."
 PAYLOAD = json.dumps({"model": SERVED_MODEL,
-                      "messages": [{"role": "user", "content": "Reply briefly to confirm availability."}],
+                      "messages": [{"role": "user", "content": PROMPT}],
                       "max_tokens": 16, "temperature": 0}).encode()
 
 
@@ -36,21 +37,29 @@ def request_chat(url, token=None):
         return None, b""
 
 
-def valid_chat(body):
+def _chat_content(body: bytes) -> str | None:
     if len(body) > 1_000_000:
-        return False
+        return None
     try:
         data = json.loads(body)
     except (ValueError, UnicodeDecodeError):
-        return False
+        return None
     if not isinstance(data, dict) or data.get("model") != SERVED_MODEL:
-        return False
+        return None
     choices = data.get("choices")
     if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
-        return False
+        return None
     message = choices[0].get("message")
-    return (isinstance(message, dict) and message.get("role") == "assistant"
-            and isinstance(message.get("content"), str) and bool(message["content"].strip()))
+    if not isinstance(message, dict) or message.get("role") != "assistant":
+        return None
+    content = message.get("content")
+    if isinstance(content, str) and content.strip():
+        return content
+    return None
+
+
+def valid_chat(body):
+    return _chat_content(body) is not None
 
 
 def save_report(report_dir, namespace, evidence):
@@ -63,9 +72,13 @@ def save_report(report_dir, namespace, evidence):
     return path
 
 
-def validate(oc, namespace, route_url, token, report_dir, oc_error):
-    evidence = {"unauthenticated_status": None, "authenticated_status": None,
-                "authenticated_chat_valid": False, "result": None}
+def validate(oc, namespace, route_url, token, report_dir, oc_error, *, include_exchange=False):
+    evidence: dict[str, int | bool | str | None] = {
+        "unauthenticated_status": None, "authenticated_status": None,
+        "authenticated_chat_valid": False, "result": None,
+    }
+    if include_exchange:
+        evidence.update(prompt=None, response=None)
 
     def finish(result, action):
         evidence["result"] = result
@@ -97,6 +110,8 @@ def validate(oc, namespace, route_url, token, report_dir, oc_error):
             or parsed.query or parsed.fragment):
         return finish("route_failed", "set ROUTE_URL to the external HTTPS route")
     endpoint = url.rstrip("/") + "/v1/chat/completions"
+    if include_exchange:
+        evidence["prompt"] = PROMPT
     unauth_status, _ = request_chat(endpoint)
     evidence["unauthenticated_status"] = unauth_status
     if unauth_status is None:
@@ -115,7 +130,10 @@ def validate(oc, namespace, route_url, token, report_dir, oc_error):
         return finish("authentication_failed", f"platform token rejected with HTTP {auth_status}; check token and model access")
     if auth_status == 503:
         return finish("readiness_failed", "route returned HTTP 503; inspect predictor readiness")
-    if auth_status != 200 or not valid_chat(body):
+    content = _chat_content(body) if auth_status == 200 else None
+    if content is None:
         return finish("inference_failed", f"chat inference failed or response contract invalid (HTTP {auth_status}); inspect model logs")
     evidence["authenticated_chat_valid"] = True
+    if include_exchange:
+        evidence["response"] = content
     return finish("passed", "unauthenticated request rejected and authenticated chat response valid")
