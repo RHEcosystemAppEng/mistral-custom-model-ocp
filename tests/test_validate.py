@@ -105,6 +105,28 @@ class ValidateWorkflowTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.server.prompts, [prompt])
 
+    def test_chat_uses_active_oc_login_for_discovered_route(self):
+        result = self.run_chat("Explain this", RHOAI_TOKEN="", ROUTE_URL="",
+                               FAKE_OC_ROUTE_URL=self.url, FAKE_OC_TOKEN="platform-secret")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.server.requests, [("/v1/chat/completions", "Bearer platform-secret", 256)])
+        self.assertEqual(result.stdout, "Sensitive generated answer\n")
+        self.assertEqual(result.stderr, "")
+
+    def test_chat_requires_explicit_token_for_other_route(self):
+        result = self.run_chat("Explain this", RHOAI_TOKEN="", FAKE_OC_ROUTE_URL="https://model.example.test",
+                               FAKE_OC_TOKEN="platform-secret")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("set RHOAI_TOKEN explicitly", result.stderr)
+        self.assertEqual(self.server.requests, [])
+
+    def test_chat_reports_missing_oc_login_for_discovered_route(self):
+        result = self.run_chat("Explain this", RHOAI_TOKEN="", ROUTE_URL="",
+                               FAKE_OC_ROUTE_URL=self.url, FAKE_OC_TOKEN="")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("oc login", result.stderr)
+        self.assertEqual(self.server.requests, [])
+
     def test_chat_prints_partial_reply_and_warns_when_token_limit_is_reached(self):
         self.server.content = "Partial reply"
         self.server.finish_reason = "length"

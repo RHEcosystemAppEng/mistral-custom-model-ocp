@@ -82,7 +82,7 @@ class RouteFailure(Exception):
         self.result = result
 
 
-def chat_endpoint(oc, namespace, route_url, oc_error):
+def chat_endpoint(oc, namespace, route_url, oc_error, *, require_advertised_route=False):
     try:
         service = oc.get("inferenceservice", "mistral-large-instruct-2411", "-n", namespace)
     except oc_error as error:
@@ -94,7 +94,10 @@ def chat_endpoint(oc, namespace, route_url, oc_error):
     annotations = service.get("metadata", {}).get("annotations", {})
     if annotations.get("security.opendatahub.io/enable-auth") != "true":
         raise RouteFailure("authentication_failed", "InferenceService has not requested RHOAI platform authentication")
-    url = route_url or service.get("status", {}).get("url", "")
+    advertised_url = service.get("status", {}).get("url") or ""
+    url = route_url or advertised_url
+    if require_advertised_route and url.rstrip("/") != advertised_url.rstrip("/"):
+        raise RouteFailure("authentication_failed", "set RHOAI_TOKEN explicitly for a ROUTE_URL other than the advertised route")
     try:
         parsed = urlsplit(url)
     except ValueError as error:
@@ -105,7 +108,7 @@ def chat_endpoint(oc, namespace, route_url, oc_error):
     return url.rstrip("/") + "/v1/chat/completions"
 
 
-def chat(oc, namespace, route_url, oc_error):
+def chat(oc, namespace, route_url, oc_error, *, use_oc_token=False):
     prompt = os.environ.get("MISTRAL_CHAT_PROMPT")
     try:
         if prompt is None:
@@ -124,14 +127,22 @@ def chat(oc, namespace, route_url, oc_error):
         print("FAIL chat: MAX_TOKENS must be a positive integer", file=sys.stderr)
         return 1
     token = os.environ.get("RHOAI_TOKEN", "")
-    if not token:
+    if not token and not use_oc_token:
         print(MISSING_TOKEN_MESSAGE, file=sys.stderr)
         return 1
     try:
-        endpoint = chat_endpoint(oc, namespace, route_url, oc_error)
+        endpoint = chat_endpoint(oc, namespace, route_url, oc_error, require_advertised_route=not token)
     except RouteFailure as error:
         print(f"FAIL chat: {error}", file=sys.stderr)
         return 1
+    if not token:
+        try:
+            token = oc.run("whoami", "--show-token").strip()
+        except oc_error:
+            token = ""
+        if not token:
+            print("FAIL authentication: run oc login or set RHOAI_TOKEN to a RHOAI platform model access token", file=sys.stderr)
+            return 1
     status, body = request_chat(endpoint, token, payload=chat_payload(prompt, max_tokens))
     if status != 200:
         reason = f"route returned HTTP {status}" if status is not None else "cannot reach route; check DNS and TLS"

@@ -357,6 +357,7 @@ def main():
     parser.add_argument("--serving-timeout", default="3600s", help="startup and readiness timeout in seconds with an s suffix")
     parser.add_argument("--report-dir", default="reports", help="local operation report directory")
     parser.add_argument("--route-url", default="", help="external HTTPS route; empty uses InferenceService status")
+    parser.add_argument("--use-oc-token", action="store_true", help="let chat fall back to the current oc login for the advertised route")
     parser.add_argument("--include-exchange", action="store_true", help="include prompt and assistant reply in the validate report")
     parser.add_argument("--cleanup-timeout", default="300s", help="per-request cleanup timeout in seconds with an s suffix")
     parser.add_argument("--run-report", default="", help="verification.json path for purge-run")
@@ -387,7 +388,7 @@ def main():
     if args.command == "restart-verify":
         return verify_restart(Oc(args.oc), cfg, args.report_dir, RUNTIME_IMAGE, OcError)
     if args.command == "chat":
-        return chat_route(Oc(args.oc), cfg["namespace"], args.route_url, OcError)
+        return chat_route(Oc(args.oc), cfg["namespace"], args.route_url, OcError, use_oc_token=args.use_oc_token)
     if args.command in ("validate", "concurrency-check", "context-check"):
         token = os.environ.get("RHOAI_TOKEN", "")
         if not token:

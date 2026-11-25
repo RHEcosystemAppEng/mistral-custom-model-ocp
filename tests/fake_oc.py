@@ -69,6 +69,12 @@ if scenario.startswith("cleanup"):
 if args == ["whoami"]:
     print("test-operator")
     sys.exit(0)
+if args == ["whoami", "--show-token"] and scenario == "validate_ready":
+    token = os.environ.get("FAKE_OC_TOKEN", "")
+    if token:
+        print(token)
+        sys.exit(0)
+    sys.exit(1)
 if args[:2] == ["auth", "can-i"]:
     print("no" if scenario == "denied" else "yes")
     sys.exit(0)
@@ -238,6 +244,8 @@ if scenario.startswith("serving_"):
 if scenario == "validate_ready" and resource == "inferenceservice":
     objects["inferenceservice"] = {"metadata": {"annotations": {"security.opendatahub.io/enable-auth": "true"}},
                                    "status": {"conditions": [{"type": "Ready", "status": "True"}]}}
+    if os.environ.get("FAKE_OC_ROUTE_URL"):
+        objects["inferenceservice"]["status"]["url"] = os.environ["FAKE_OC_ROUTE_URL"]
     objects["inferenceservice"]["spec"] = {"predictor": {"model": {"resources": {"limits": {"nvidia.com/gpu": "4"}}}}}
 if scenario == "validate_unready" and resource == "inferenceservice":
     objects["inferenceservice"] = {"status": {"conditions": [{"type": "Ready", "status": "False"}]}}

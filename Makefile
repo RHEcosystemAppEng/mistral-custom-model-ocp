@@ -63,7 +63,7 @@ chat: export MISTRAL_CHAT_PROMPT := $(value PROMPT)
 unexport PROMPT
 endif
 chat:
-	@$(PYTHON) -m mistral_validation chat --oc "$(OC)" --namespace "$(NAMESPACE)" --route-url "$(ROUTE_URL)"
+	@$(PYTHON) -m mistral_validation chat --oc "$(OC)" --namespace "$(NAMESPACE)" --route-url "$(ROUTE_URL)" --use-oc-token
 
 .PHONY: concurrency-check
 concurrency-check:

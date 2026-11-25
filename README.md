@@ -174,7 +174,7 @@ or inference needs attention.
 
 ### Send a custom prompt
 
-With `RHOAI_TOKEN` exported as above, send one prompt with `make chat`:
+With an active `oc` login that has model access, send one prompt with `make chat`:
 
 ```sh
 make chat PROMPT="Explain why the sky is blue"
@@ -187,6 +187,10 @@ If `PROMPT` is set, it takes precedence over standard input. A blank prompt
 exits with usage guidance. `make chat` uses the same `NAMESPACE` and `ROUTE_URL`
 settings and checks InferenceService readiness and platform authentication
 before sending one authenticated request.
+
+`make chat` uses `RHOAI_TOKEN` if set. Otherwise it uses the current `oc` login
+token for the HTTPS route advertised by the InferenceService. Supply
+`RHOAI_TOKEN` explicitly when using a different `ROUTE_URL`.
 
 The default output limit is 256 tokens. The assistant reply goes to standard
 output and diagnostics go to standard error. A reply cut short by the token
