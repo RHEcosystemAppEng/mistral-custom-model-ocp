@@ -355,6 +355,7 @@ def main():
     parser.add_argument("--serving-timeout", default="3600s", help="startup and readiness timeout in seconds with an s suffix")
     parser.add_argument("--report-dir", default="reports", help="local operation report directory")
     parser.add_argument("--route-url", default="", help="external HTTPS route; empty uses InferenceService status")
+    parser.add_argument("--include-exchange", action="store_true", help="include prompt and assistant reply in the validate report")
     parser.add_argument("--cleanup-timeout", default="300s", help="per-request cleanup timeout in seconds with an s suffix")
     parser.add_argument("--run-report", default="", help="verification.json path for purge-run")
     args = parser.parse_args()
@@ -392,7 +393,8 @@ def main():
             return check_concurrency(Oc(args.oc), cfg, args.route_url, token, args.report_dir, OcError)
         if args.command == "context-check":
             return check_context(Oc(args.oc), cfg, args.route_url, token, args.report_dir, OcError)
-        return validate_route(Oc(args.oc), cfg["namespace"], args.route_url, token, args.report_dir, OcError)
+        return validate_route(Oc(args.oc), cfg["namespace"], args.route_url, token, args.report_dir, OcError,
+                              include_exchange=args.include_exchange)
     if args.command == "render-discovery":
         print(json.dumps(render_discovery(cfg, WEIGHT_IMAGES), indent=2))
         return 0

@@ -54,7 +54,7 @@ restart-verify:
 	$(PYTHON) -m mistral_validation restart-verify --oc "$(OC)" $(OPERATOR_ARGS) --serving-timeout "$(SERVING_TIMEOUT)" --report-dir "$(REPORT_DIR)"
 
 validate:
-	$(PYTHON) -m mistral_validation validate --oc "$(OC)" $(OPERATOR_ARGS) --route-url "$(ROUTE_URL)" --report-dir "$(REPORT_DIR)"
+	$(PYTHON) -m mistral_validation validate --oc "$(OC)" $(OPERATOR_ARGS) --route-url "$(ROUTE_URL)" --report-dir "$(REPORT_DIR)" --include-exchange
 
 .PHONY: concurrency-check
 concurrency-check:

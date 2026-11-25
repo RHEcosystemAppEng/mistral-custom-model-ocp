@@ -163,12 +163,13 @@ URL in `status.url`. The command checks InferenceService readiness, sends an
 unauthenticated chat request and requires HTTP 401 or 403, then sends the same
 request with `Authorization: Bearer` and the platform token. Success requires
 HTTP 200, the intended model ID, an assistant message, and nonempty content.
-It does not compare generated wording. The validation report under `reports/`
-records status codes and outcomes only; it omits the token, prompt, URL, and
-response bodies. Set `REPORT_DIR` to change the report location. TLS certificate
-verification remains enabled. A failed check returns a nonzero status and
-identifies whether the route, authentication, readiness, or inference needs
-attention.
+The standalone `make validate` report under `reports/` records status codes,
+the outcome, the exact prompt once a chat request is attempted, and the
+assistant text if the authenticated response passes validation. Unavailable
+prompt or response values are `null`. Set `REPORT_DIR` to change the report
+location. TLS certificate verification remains enabled. A failed check returns
+a nonzero status and identifies whether the route, authentication, readiness,
+or inference needs attention.
 
 ## Uninstall and remove model data
 

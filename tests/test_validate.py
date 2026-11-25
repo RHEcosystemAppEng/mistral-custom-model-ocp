@@ -19,7 +19,8 @@ class RouteHandler(BaseHTTPRequestHandler):
         pass
 
     def do_POST(self):
-        self.rfile.read(int(self.headers["Content-Length"]))
+        request = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        self.server.prompts.append(request["messages"][0]["content"])
         if self.server.route_status:
             status, payload = self.server.route_status, {"detail": "sensitive route error"}
         elif not self.headers.get("Authorization") and not self.server.allow_anonymous:
@@ -49,6 +50,7 @@ class ValidateWorkflowTests(unittest.TestCase):
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), RouteHandler)
         self.server.model = MODEL
         self.server.content = "Sensitive generated answer"
+        self.server.prompts = []
         self.server.allow_anonymous = False
         self.server.route_status = None
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -72,13 +74,17 @@ class ValidateWorkflowTests(unittest.TestCase):
         return result, evidence, reports[0].read_text() if reports else ""
 
     def test_protected_route_accepts_platform_token_and_records_safe_evidence(self):
+        self.server.content = "  Generated answer\nwith café.  "
         result, evidence, report = self.run_validate()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(evidence["unauthenticated_status"], 401)
         self.assertTrue(evidence["authenticated_chat_valid"])
         self.assertEqual(evidence["result"], "passed")
+        self.assertEqual(self.server.prompts, [evidence["prompt"], evidence["prompt"]])
+        self.assertEqual(evidence["response"], self.server.content)
         self.assertNotIn("platform-secret", result.stdout + result.stderr + report)
-        self.assertNotIn("Sensitive generated answer", result.stdout + result.stderr + report)
+        self.assertNotIn("Generated answer", result.stdout + result.stderr)
+        self.assertNotIn(evidence["prompt"], result.stdout + result.stderr)
         self.assertNotIn("sensitive denial", result.stdout + result.stderr + report)
 
     def test_wrong_model_fails_inference_contract(self):
@@ -86,6 +92,8 @@ class ValidateWorkflowTests(unittest.TestCase):
         result, evidence, _ = self.run_validate()
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(evidence["result"], "inference_failed")
+        self.assertEqual(evidence["prompt"], self.server.prompts[0])
+        self.assertIsNone(evidence["response"])
         self.assertIn("inference", result.stdout.lower())
 
     def test_missing_token_fails_without_sending_requests(self):
@@ -100,12 +108,16 @@ class ValidateWorkflowTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(evidence["result"], "authentication_failed")
         self.assertIsNone(evidence["authenticated_status"])
+        self.assertEqual(evidence["prompt"], self.server.prompts[0])
+        self.assertIsNone(evidence["response"])
 
     def test_unready_service_fails_before_route_requests(self):
         result, evidence, _ = self.run_validate(FAKE_OC_SCENARIO="validate_unready")
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(evidence["result"], "readiness_failed")
         self.assertIsNone(evidence["unauthenticated_status"])
+        self.assertIsNone(evidence["prompt"])
+        self.assertIsNone(evidence["response"])
 
     def test_service_without_platform_auth_fails_before_route_requests(self):
         result, evidence, _ = self.run_validate(FAKE_OC_SCENARIO="validate_no_platform_auth")

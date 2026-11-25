@@ -69,6 +69,10 @@ class ConcurrencyWorkflowTests(unittest.TestCase):
         self.assertGreater(evidence["elapsed_seconds"], 0)
         for secret in ("platform-secret", "Sensitive generated answer", self.url):
             self.assertNotIn(secret, result.stdout + result.stderr + raw)
+        validation_report, = self.directory.glob("validation-*.json")
+        validation = json.loads(validation_report.read_text())
+        self.assertNotIn("prompt", validation)
+        self.assertNotIn("response", validation)
 
     def test_single_bad_response_fails_batch_without_losing_other_outcomes(self):
         self.server.batch_failure = True
