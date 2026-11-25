@@ -171,6 +171,27 @@ location. TLS certificate verification remains enabled. A failed check returns
 a nonzero status and identifies whether the route, authentication, readiness,
 or inference needs attention.
 
+### Send a custom prompt
+
+With `RHOAI_TOKEN` exported as above, send one prompt with `make chat`:
+
+```sh
+make chat PROMPT="Explain why the sky is blue"
+make chat < prompt.txt
+make chat MAX_TOKENS=512 < prompt.txt > reply.txt
+```
+
+Use standard input for a multiline UTF-8 prompt or to preserve leading spaces.
+If `PROMPT` is set, it takes precedence over standard input. A blank prompt
+exits with usage guidance. `make chat` uses the same `NAMESPACE` and `ROUTE_URL`
+settings and checks InferenceService readiness and platform authentication
+before sending one authenticated request.
+
+The default output limit is 256 tokens. The assistant reply goes to standard
+output and diagnostics go to standard error. A reply cut short by the token
+limit is printed with a warning and a successful exit status. Request failures
+and unusable replies exit nonzero.
+
 ## Uninstall and remove model data
 
 To stop serving and remove the installation workloads, run:

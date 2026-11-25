@@ -56,6 +56,15 @@ restart-verify:
 validate:
 	$(PYTHON) -m mistral_validation validate --oc "$(OC)" $(OPERATOR_ARGS) --route-url "$(ROUTE_URL)" --report-dir "$(REPORT_DIR)" --include-exchange
 
+.PHONY: chat
+ifneq ($(origin PROMPT),undefined)
+# Export the literal prompt instead of expanding it in Make or in the recipe shell.
+chat: export MISTRAL_CHAT_PROMPT := $(value PROMPT)
+unexport PROMPT
+endif
+chat:
+	@$(PYTHON) -m mistral_validation chat --oc "$(OC)" --namespace "$(NAMESPACE)" --route-url "$(ROUTE_URL)"
+
 .PHONY: concurrency-check
 concurrency-check:
 	$(PYTHON) -m mistral_validation concurrency-check --oc "$(OC)" $(OPERATOR_ARGS) --route-url "$(ROUTE_URL)" --report-dir "$(REPORT_DIR)"
