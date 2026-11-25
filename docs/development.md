@@ -29,10 +29,10 @@ For a regular installation, run `python -m pip install .` instead of the editabl
 install above. Once installed, `mistral-validate --help` and
 `mistral-validate render-deployment` work from any directory.
 `python -m mistral_validation` is the equivalent module entry point, and every
-Makefile workflow delegates to it using `PYTHON` (default `python3` from `PATH`).
-Activate the environment before running Make, or pass
-`make render-config PYTHON="$PWD/.venv/bin/python"`. Layout and report paths
-are resolved relative to the directory where the command is invoked; use
+Makefile workflow delegates to it using `PYTHON`. Make defaults to
+`.venv/bin/python` when present and otherwise uses `python3` from `PATH`.
+To select another interpreter, pass `PYTHON=/path/to/python` to Make. Layout and
+report paths are resolved relative to the directory where the command is invoked; use
 absolute paths when running from elsewhere.
 
 The discovery, preparation and serving YAML templates, preparation worker and runtime diagnostic are included in the installed

@@ -17,6 +17,8 @@ from .inventory import collect as collect_inventory
 from .deployment import RUNTIME_IMAGE, render as deployment_config
 from .serving import observe as observe_serving
 from .serving import verify_restart
+from .validation import MISSING_TOKEN_MESSAGE
+from .validation import chat as chat_route
 from .validation import validate as validate_route
 from .runtime_check import check as check_runtime
 from .concurrency import check as check_concurrency
@@ -341,8 +343,8 @@ def main():
         epilog="Deployment sequence: preflight, inventory, prepare, install, status, validate. "
                "Uninstall preserves model storage; purge explicitly deletes the model PVC.",
     )
-    parser.add_argument("command", choices=("preflight", "inventory", "render-config", "render-deployment", "render-discovery", "render-preparation", "prepare", "install", "status", "validate", "restart-verify", "runtime-check", "concurrency-check", "context-check", "uninstall", "purge", "verify-run", "purge-run"),
-                        help="deployment, preview, verification, or cleanup operation")
+    parser.add_argument("command", choices=("preflight", "inventory", "render-config", "render-deployment", "render-discovery", "render-preparation", "prepare", "install", "status", "validate", "chat", "restart-verify", "runtime-check", "concurrency-check", "context-check", "uninstall", "purge", "verify-run", "purge-run"),
+                        help="deployment, preview, verification, inference, or cleanup operation")
     parser.add_argument("--oc", default="oc", help="OpenShift CLI binary")
     parser.add_argument("--namespace", default="mistral-custom-model-ocp", help="dedicated deployment namespace")
     parser.add_argument("--pull-secret", default="ibm-entitlement", help="existing IBM registry pull secret in the namespace")
@@ -355,6 +357,7 @@ def main():
     parser.add_argument("--serving-timeout", default="3600s", help="startup and readiness timeout in seconds with an s suffix")
     parser.add_argument("--report-dir", default="reports", help="local operation report directory")
     parser.add_argument("--route-url", default="", help="external HTTPS route; empty uses InferenceService status")
+    parser.add_argument("--use-oc-token", action="store_true", help="let chat fall back to the current oc login for the advertised route")
     parser.add_argument("--include-exchange", action="store_true", help="include prompt and assistant reply in the validate report")
     parser.add_argument("--cleanup-timeout", default="300s", help="per-request cleanup timeout in seconds with an s suffix")
     parser.add_argument("--run-report", default="", help="verification.json path for purge-run")
@@ -384,10 +387,12 @@ def main():
         return serving_status(Oc(args.oc), cfg)
     if args.command == "restart-verify":
         return verify_restart(Oc(args.oc), cfg, args.report_dir, RUNTIME_IMAGE, OcError)
+    if args.command == "chat":
+        return chat_route(Oc(args.oc), cfg["namespace"], args.route_url, OcError, use_oc_token=args.use_oc_token)
     if args.command in ("validate", "concurrency-check", "context-check"):
         token = os.environ.get("RHOAI_TOKEN", "")
         if not token:
-            print("FAIL authentication: set RHOAI_TOKEN to a RHOAI platform model access token")
+            print(MISSING_TOKEN_MESSAGE)
             return 1
         if args.command == "concurrency-check":
             return check_concurrency(Oc(args.oc), cfg, args.route_url, token, args.report_dir, OcError)

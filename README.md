@@ -42,9 +42,10 @@ python -m pip install .
 mistral-validate --help
 ```
 
-No Helm or local GPU libraries are required. The commands below use Make from
-the repository root with the virtual environment active. The installed
-`mistral-validate` CLI also works outside the checkout;
+No Helm or local GPU libraries are required. Run the Make commands from the
+repository root. Make uses `.venv/bin/python` when present and otherwise uses
+`python3` from `PATH`. The installed `mistral-validate` CLI also works outside
+the checkout;
 `python -m mistral_validation` is the equivalent module entry point.
 
 ## Configure the deployment
@@ -170,6 +171,31 @@ prompt or response values are `null`. Set `REPORT_DIR` to change the report
 location. TLS certificate verification remains enabled. A failed check returns
 a nonzero status and identifies whether the route, authentication, readiness,
 or inference needs attention.
+
+### Send a custom prompt
+
+With an active `oc` login that has model access, send one prompt with `make chat`:
+
+```sh
+make chat PROMPT="Explain why the sky is blue"
+make chat < prompt.txt
+make chat MAX_TOKENS=512 < prompt.txt > reply.txt
+```
+
+Use standard input for a multiline UTF-8 prompt or to preserve leading spaces.
+If `PROMPT` is set, it takes precedence over standard input. A blank prompt
+exits with usage guidance. `make chat` uses the same `NAMESPACE` and `ROUTE_URL`
+settings and checks InferenceService readiness and platform authentication
+before sending one authenticated request.
+
+`make chat` uses `RHOAI_TOKEN` if set. Otherwise it uses the current `oc` login
+token for the HTTPS route advertised by the InferenceService. Supply
+`RHOAI_TOKEN` explicitly when using a different `ROUTE_URL`.
+
+The default output limit is 256 tokens. The assistant reply goes to standard
+output and diagnostics go to standard error. A reply cut short by the token
+limit is printed with a warning and a successful exit status. Request failures
+and unusable replies exit nonzero.
 
 ## Uninstall and remove model data
 
